@@ -38,6 +38,19 @@ pub Expr_: Expr = {
     <s:StrLiteral> => Expr::Str{s},
 
     <func:Ident> "(" <arg:Expr> ")" => Expr::Call{func, args: vec![arg]},
+
+    "[" <xs:ExprList> "]" => Expr::List{xs},
+}
+
+pub ExprList: Vec<Expr> = {
+    () => vec![],
+    <head:Expr> => vec![head],
+    <head:Expr> "," <tail:ExprList> => {
+        let mut list = tail.clone();
+        list.insert(0, head);
+
+        list
+    },
 }
 
 Ident: String = {

@@ -9,10 +9,10 @@ use ast::*;
 pub fn eval_prog(env: &mut HashMap<String, Value>, Prog::Body{stmts}: &Prog)
     -> Result<(),String>
 {
-    eval_block(env, &stmts)
+    eval_stmts(env, &stmts)
 }
 
-pub fn eval_block(env: &mut HashMap<String, Value>, stmts: &Vec<Stmt>)
+pub fn eval_stmts(env: &mut HashMap<String, Value>, stmts: &Vec<Stmt>)
     -> Result<(),String>
 {
     for stmt in stmts {
@@ -80,9 +80,9 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt) ->
                 };
 
             if b {
-                return eval_block(env, &if_stmts);
+                return eval_stmts(env, &if_stmts);
             } else if let Some(stmts) = else_stmts {
-                return eval_block(env, &stmts);
+                return eval_stmts(env, &stmts);
             }
         },
 
@@ -104,7 +104,7 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt) ->
                     break;
                 }
 
-                if let Err(e) = eval_block(env, &stmts) {
+                if let Err(e) = eval_stmts(env, &stmts) {
                     return Err(e);
                 }
             }
@@ -123,6 +123,16 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
         Expr::Int{n} => Ok(Value::Int{n: n.clone()}),
 
         Expr::Str{s} => Ok(Value::Str{s: s.clone()}),
+
+        Expr::List{xs} => {
+            let vals =
+                match eval_exprs(env, &xs) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            Ok(Value::List{xs: vals})
+        },
 
         Expr::Op{lhs, rhs} => {
             let exprs = vec![lhs, rhs];
@@ -150,14 +160,11 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
         },
 
         Expr::Call{func, args} => {
-            let mut vals = vec![];
-
-            for arg in args {
-                match eval_expr(env, &arg) {
-                    Ok(v) => vals.push(v),
+            let vals =
+                match eval_exprs(env, &args) {
+                    Ok(v) => v,
                     Err(e) => return Err(e),
-                }
-            }
+                };
 
             let v =
                 match env.get(func) {
@@ -174,6 +181,21 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
 
         // _ => Err(format!("unhandled expression: {:?}", expr)),
     }
+}
+
+pub fn eval_exprs(env: &mut HashMap<String, Value>, exprs: &Vec<Expr>)
+    -> Result<Vec<Value>,String>
+{
+    let mut vals = vec![];
+
+    for expr in exprs {
+        match eval_expr(env, &expr) {
+            Ok(v) => vals.push(v),
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok(vals)
 }
 
 fn operate(op: &Op, lhs: &Value, rhs: &Value)
@@ -197,6 +219,7 @@ pub enum Value {
     Bool{b: bool},
     Int{n: i64},
     Str{s: String},
+    List{xs: Vec<Value>},
 
     Func{f: fn(Vec<Value>) -> Result<Value, String>},
 }

@@ -27,6 +27,7 @@ pub enum Expr {
 
     Op{lhs: Box<Expr>, rhs: Box<Expr>},
 
+    List{xs: Vec<Expr>},
     Call{func: String, args: Vec<Expr>},
 }
 
