@@ -29,7 +29,7 @@ fn main() {
     env.insert("print".to_string(), Value::Func{f: print_});
 
     let ast = parser::ProgParser::new().parse(&test).unwrap();
-    let result = eval::eval_prog(&mut env, ast);
+    let result = eval::eval_prog(&mut env, &ast);
 
     println!("{:?}", result);
 }
