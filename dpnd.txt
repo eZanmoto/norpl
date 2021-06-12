@@ -1,0 +1,6 @@
+# Note that `target` is used as the output directory for Rust so care should be
+# taken that collisions don't occur between Rust output and local output.
+target/deps
+
+# We use the `scripts/check_line_length.py` script from this project.
+dpnd git https://github.com/eZanmoto/dpnd v0.1.14

@@ -1,0 +1,37 @@
+// Copyright 2021 Sean Kelleher. All rights reserved.
+// Use of this source code is governed by an MIT
+// licence that can be found in the LICENCE file.
+
+use ast::Expr;
+use ast::Prog;
+use ast::Stmt;
+
+grammar;
+
+pub Prog: Prog = {
+    <stmts:Stmt*> => Prog::Body{stmts},
+}
+
+pub Stmt: Stmt = {
+    <expr:Expr> ";" => Stmt::Expr{expr},
+}
+
+pub Expr: Expr = {
+    <n:IntLiteral> => Expr::Int{n},
+
+    <func:Identifier> "(" <arg:Expr> ")" => Expr::Call{func, args: vec![arg]},
+}
+
+Identifier: String = {
+    <s:r"[_a-zA-Z][_a-zA-Z0-9]*"> => s.to_string(),
+};
+
+IntLiteral: i64 = {
+    <s:r"[0-9]+"> => s.parse().unwrap(),
+};
+
+match {
+    r"\s*" => {},
+    r"#[^\n\r]*[\n\r]*" => {},
+    _,
+}

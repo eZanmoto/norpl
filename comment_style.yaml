@@ -1,0 +1,28 @@
+# Copyright 2021 Sean Kelleher. All rights reserved.
+# Use of this source code is governed by an MIT
+# licence that can be found in the LICENCE file.
+
+- paths:
+  - include: '**/*.rs'
+  - exclude: 'target/**'
+  comment_markers:
+    line: '//'
+    block: '/*'
+
+- paths:
+  - include: 'dpnd.txt'
+  - include: 'Makefile'
+  - include: '**/*.lalrpop'
+  - include: '**/*.toml'
+  - include: '**/*.yaml'
+  - exclude: 'target/**'
+  comment_markers:
+    line: '#'
+
+- paths:
+  - include: '**/*.sh'
+  - exclude: 'target/**'
+  comment_markers:
+    line: '#'
+  allow:
+  - trailing_comment
