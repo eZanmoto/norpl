@@ -2,9 +2,7 @@
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
-use ast::Expr;
-use ast::Prog;
-use ast::Stmt;
+use ast::*;
 
 grammar;
 
@@ -14,16 +12,40 @@ pub Prog: Prog = {
 
 pub Stmt: Stmt = {
     <expr:Expr> ";" => Stmt::Expr{expr},
+
+    <name:Ident> "=" <rhs:Expr> ";" => Stmt::Assign{name, rhs},
+    <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Plus, rhs},
+
+    <stmt:IfStmt> => stmt,
+    "while" <cond:Expr> "{" <stmts:Stmt*> "}" => Stmt::While{cond, stmts},
+}
+
+pub IfStmt: Stmt = {
+    "if" <cond:Expr> "{" <if_stmts:Stmt*> "}" =>
+        Stmt::If{cond, if_stmts, else_stmts: None},
+    "if" <cond:Expr> "{" <if_stmts:Stmt*> "}" "else" "{" <else_stmts:Stmt*> "}" =>
+        Stmt::If{cond, if_stmts, else_stmts: Some(else_stmts)},
 }
 
 pub Expr: Expr = {
-    <n:IntLiteral> => Expr::Int{n},
-
-    <func:Identifier> "(" <arg:Expr> ")" => Expr::Call{func, args: vec![arg]},
+    <lhs:Expr> "<" <rhs:Expr_> => Expr::Op{lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <expr:Expr_> => expr,
 }
 
-Identifier: String = {
+pub Expr_: Expr = {
+    <name:Ident> => Expr::Var{name},
+    <n:IntLiteral> => Expr::Int{n},
+    <s:StrLiteral> => Expr::Str{s},
+
+    <func:Ident> "(" <arg:Expr> ")" => Expr::Call{func, args: vec![arg]},
+}
+
+Ident: String = {
     <s:r"[_a-zA-Z][_a-zA-Z0-9]*"> => s.to_string(),
+};
+
+StrLiteral: String = {
+    <s:r"'[^']*'"> => s.trim_matches('\'').to_string(),
 };
 
 IntLiteral: i64 = {

@@ -9,11 +9,29 @@ pub enum Prog {
 
 #[derive(Clone,Debug)]
 pub enum Stmt {
+    Assign{name: String, rhs: Expr},
+    OpAssign{name: String, op: Op, rhs: Expr},
+
+    If{cond: Expr, if_stmts: Vec<Stmt>, else_stmts: Option<Vec<Stmt>>},
+    While{cond: Expr, stmts: Vec<Stmt>},
+
     Expr{expr: Expr},
 }
 
 #[derive(Clone,Debug)]
 pub enum Expr {
     Int{n: i64},
+    Str{s: String},
+
+    Var{name: String},
+
+    Op{lhs: Box<Expr>, rhs: Box<Expr>},
+
     Call{func: String, args: Vec<Expr>},
+}
+
+#[derive(Clone,Debug)]
+pub enum Op {
+    LT,
+    Plus,
 }
