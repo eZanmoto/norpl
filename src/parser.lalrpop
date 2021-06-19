@@ -42,12 +42,19 @@ pub Expr_: Expr = {
     "[" <xs:ExprList> "]" => Expr::List{xs},
 }
 
-pub ExprList: Vec<Expr> = {
+pub ExprList: Vec<ListItem> = {
     () => vec![],
-    <head:Expr> => vec![head],
-    <head:Expr> "," <tail:ExprList> => {
+    <head:Expr> <spread:".."?> => vec![ListItem{
+        expr: head,
+        is_spread: spread.is_some(),
+    }],
+    <head:Expr> <spread:".."?> "," <tail:ExprList> => {
         let mut list = tail.clone();
-        list.insert(0, head);
+        let head_ = ListItem{
+            expr: head,
+            is_spread: spread.is_some(),
+        };
+        list.insert(0, head_);
 
         list
     },

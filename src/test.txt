@@ -1,5 +1,3 @@
-i = 0;
-while i < 3 {
-    print(i);
-    i += 1;
-}
+xs = ['b', 'c'];
+ys = [xs.., 'a', xs..];
+print(ys);

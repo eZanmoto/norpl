@@ -27,8 +27,14 @@ pub enum Expr {
 
     Op{lhs: Box<Expr>, rhs: Box<Expr>},
 
-    List{xs: Vec<Expr>},
+    List{xs: Vec<ListItem>},
     Call{func: String, args: Vec<Expr>},
+}
+
+#[derive(Clone,Debug)]
+pub struct ListItem {
+    pub expr: Expr,
+    pub is_spread: bool,
 }
 
 #[derive(Clone,Debug)]

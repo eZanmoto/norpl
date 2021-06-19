@@ -125,11 +125,25 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
         Expr::Str{s} => Ok(Value::Str{s: s.clone()}),
 
         Expr::List{xs} => {
-            let vals =
-                match eval_exprs(env, &xs) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let mut vals = vec![];
+
+            for item in xs {
+                let v =
+                    match eval_expr(env, &item.expr) {
+                        Ok(v) => v,
+                        Err(e) => return Err(e),
+                    };
+
+                if !item.is_spread {
+                    vals.push(v);
+                    continue;
+                }
+
+                match v {
+                    Value::List{mut xs} => vals.append(&mut xs),
+                    _ => return Err(format!("only lists can be spread")),
+                }
+            }
 
             Ok(Value::List{xs: vals})
         },
