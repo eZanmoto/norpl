@@ -13,7 +13,7 @@ pub Prog: Prog = {
 pub Stmt: Stmt = {
     <expr:Expr> ";" => Stmt::Expr{expr},
 
-    <name:Ident> "=" <rhs:Expr> ";" => Stmt::Assign{name, rhs},
+    <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
     <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Plus, rhs},
 
     <stmt:IfStmt> => stmt,

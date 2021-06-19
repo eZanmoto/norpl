@@ -24,8 +24,8 @@ pub fn eval_stmts(env: &mut HashMap<String, Value>, stmts: &Vec<Stmt>)
     Ok(())
 }
 
-fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt) ->
-    Result<(),String>
+fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
+    -> Result<(),String>
 {
     match stmt {
         Stmt::Expr{expr} => {
@@ -34,13 +34,16 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt) ->
             }
         },
 
-        Stmt::Assign{name, rhs} => {
-            match eval_expr(env, &rhs) {
-                Ok(v) => {
-                    // TODO Investigate whether `clone()` can be avoided here.
-                    env.insert(name.clone(), v);
-                },
-                Err(e) => return Err(e),
+        Stmt::Assign{lhs, rhs} => {
+            let v =
+                match eval_expr(env, &rhs) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            // TODO Consider whether `clone()` can be avoided here.
+            if let Err(e) = assign(env, lhs.clone(), v) {
+                return Err(e);
             }
         },
 
@@ -111,6 +114,60 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt) ->
         },
 
         // _ => return Err(format!("unhandled statement: {:?}", stmt)),
+    }
+
+    Ok(())
+}
+
+// TODO `assign` doesn't check for uniqueness among variable names for now,
+// meaning that multiple instances of the same variable may be overwritten in
+// the same operation. For example, `[x, x] = [1, 2]` will result in `x` having
+// the value 2, instead of reporting the fact that the first instance of the
+// assigment is effectively redundant.
+fn assign(env: &mut HashMap<String, Value>, lhs: Expr, rhs: Value)
+    -> Result<(),String>
+{
+    match lhs {
+        Expr::Var{name} => {
+            if name != "_" {
+                env.insert(name.clone(), rhs);
+            }
+
+            Ok(())
+        }
+
+        Expr::List{xs} => {
+            let ys =
+                match rhs {
+                    Value::List{xs} => xs,
+                    _ => return Err(format!("can't destructure non-list into list")),
+                };
+
+            assign_list(env, xs, ys)
+        },
+
+        Expr::Int{..} => return Err(format!("cannot assign to an integer literal")),
+        Expr::Str{..} => return Err(format!("cannot assign to a string literal")),
+        Expr::Op{..} => return Err(format!("cannot assign to an operation")),
+        Expr::Call{..} => return Err(format!("cannot assign to a function call")),
+    }
+}
+
+fn assign_list(env: &mut HashMap<String, Value>, lhs: Vec<ListItem>, rhs: Vec<Value>)
+    -> Result<(),String>
+{
+    if lhs.len() != rhs.len() {
+        return Err(format!("cannot assign {} item(s) to {} item(s)", lhs.len(), rhs.len()));
+    }
+
+    for (ListItem{expr, is_spread}, rhs) in lhs.into_iter().zip(rhs.into_iter()) {
+        if is_spread {
+            return Err(format!("can't use spread operator in list assigment"));
+        }
+
+        if let Err(e) = assign(env, expr, rhs) {
+            return Err(e);
+        }
     }
 
     Ok(())
