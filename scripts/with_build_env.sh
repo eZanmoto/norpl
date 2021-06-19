@@ -5,8 +5,8 @@
 set -o errexit
 
 org='ezanmoto'
-proj_name='norpl'
-build_img="$org/$proj_name.build"
+proj='norpl'
+build_img="$org/$proj.build"
 
 bash scripts/docker_rbuild.sh \
     "$build_img" \
@@ -14,7 +14,7 @@ bash scripts/docker_rbuild.sh \
     --file='build.Dockerfile' \
     scripts
 
-vol_name="$org.$proj_name.cargo_cache"
+vol_name="$org.$proj.cargo_cache"
 vol_dir='/cargo'
 
 docker run \
@@ -23,7 +23,7 @@ docker run \
     "$build_img:latest" \
     chmod 0777 "$vol_dir"
 
-workdir='/app'
+work_dir='/app'
 
 docker run \
     --interactive \
@@ -32,7 +32,7 @@ docker run \
     --mount="type=volume,src=$vol_name,dst=$vol_dir" \
     --env="CARGO_HOME=$vol_dir" \
     --user="$(id --user):$(id --group)" \
-    --mount="type=bind,src=$(pwd),dst=$workdir" \
-    --workdir="$workdir" \
+    --mount="type=bind,src=$(pwd),dst=$work_dir" \
+    --workdir="$work_dir" \
     "$build_img:latest" \
     "$@"
