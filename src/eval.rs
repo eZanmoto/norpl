@@ -113,6 +113,30 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
             }
         },
 
+        Stmt::For{name, iter, stmts} => {
+            let iter_ =
+                match eval_expr(env, &iter) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            let mut vals =
+                match iter_ {
+                    Value::List{xs} => xs,
+                    _ => return Err(format!("iterator must be a `list`")),
+                };
+
+            while vals.len() > 0 {
+                if let Err(e) = assign_var(env, name.clone(), vals.remove(0)) {
+                    return Err(e);
+                }
+
+                if let Err(e) = eval_stmts(env, &stmts) {
+                    return Err(e);
+                }
+            }
+        },
+
         // _ => return Err(format!("unhandled statement: {:?}", stmt)),
     }
 
