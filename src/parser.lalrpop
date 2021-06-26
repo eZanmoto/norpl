@@ -17,15 +17,18 @@ pub Stmt: Stmt = {
     <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Plus, rhs},
 
     <stmt:IfStmt> => stmt,
-    "while" <cond:Expr> "{" <stmts:Stmt*> "}" => Stmt::While{cond, stmts},
-    "for" <lhs:Expr> "in" <iter:Expr> "{" <stmts:Stmt*> "}" =>
-        Stmt::For{lhs, iter, stmts},
+    "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
+    "for" <lhs:Expr> "in" <iter:Expr> <stmts:Block> => Stmt::For{lhs, iter, stmts},
+}
+
+pub Block: Vec<Stmt> = {
+    "{" <stmts:Stmt*> "}" => stmts,
 }
 
 pub IfStmt: Stmt = {
-    "if" <cond:Expr> "{" <if_stmts:Stmt*> "}" =>
+    "if" <cond:Expr> <if_stmts:Block> =>
         Stmt::If{cond, if_stmts, else_stmts: None},
-    "if" <cond:Expr> "{" <if_stmts:Stmt*> "}" "else" "{" <else_stmts:Stmt*> "}" =>
+    "if" <cond:Expr> <if_stmts:Block> "else" <else_stmts:Block> =>
         Stmt::If{cond, if_stmts, else_stmts: Some(else_stmts)},
 }
 
