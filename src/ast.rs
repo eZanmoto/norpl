@@ -35,6 +35,7 @@ pub enum Expr {
 pub struct ListItem {
     pub expr: Expr,
     pub is_spread: bool,
+    pub is_unspread: bool,
 }
 
 #[derive(Clone,Debug)]

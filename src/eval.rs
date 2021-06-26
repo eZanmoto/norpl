@@ -129,11 +129,7 @@ fn assign(env: &mut HashMap<String, Value>, lhs: Expr, rhs: Value)
 {
     match lhs {
         Expr::Var{name} => {
-            if name != "_" {
-                env.insert(name.clone(), rhs);
-            }
-
-            Ok(())
+            assign_var(env, name, rhs)
         }
 
         Expr::List{xs} => {
@@ -153,14 +149,76 @@ fn assign(env: &mut HashMap<String, Value>, lhs: Expr, rhs: Value)
     }
 }
 
+fn assign_var(env: &mut HashMap<String, Value>, name: String, rhs: Value)
+    -> Result<(),String>
+{
+    if name != "_" {
+        env.insert(name, rhs);
+    }
+
+    Ok(())
+}
+
 fn assign_list(env: &mut HashMap<String, Value>, lhs: Vec<ListItem>, rhs: Vec<Value>)
     -> Result<(),String>
 {
-    if lhs.len() != rhs.len() {
-        return Err(format!("cannot assign {} item(s) to {} item(s)", lhs.len(), rhs.len()));
+    if lhs.len() == 0 {
+        if lhs.len() != rhs.len() {
+            return Err(format!("cannot assign {} item(s) to {} item(s)", rhs.len(), lhs.len()));
+        }
+        return Ok(())
     }
 
-    for (ListItem{expr, is_spread}, rhs) in lhs.into_iter().zip(rhs.into_iter()) {
+    let ListItem{is_unspread, ..} = lhs[lhs.len()-1];
+    if is_unspread {
+        return assign_unspread_list(env, lhs, rhs);
+    }
+    return assign_exact_list(env, lhs, rhs);
+}
+
+fn assign_unspread_list(env: &mut HashMap<String, Value>, mut lhs: Vec<ListItem>, mut rhs: Vec<Value>)
+    -> Result<(),String>
+{
+    if lhs.len() > rhs.len() {
+        return Err(format!("cannot unspread {} item(s) to {} item(s)", rhs.len(), lhs.len()));
+    }
+
+    let ListItem{expr: unspread_expr, ..} =
+        match lhs.pop() {
+            Some(v) => v,
+            None => return Err(format!("dev error: `lhs` shoudn't be empty")),
+        };
+
+    let rhs_rest = rhs.split_off(lhs.len());
+
+    for (ListItem{expr, is_spread, ..}, rhs) in lhs.into_iter().zip(rhs.into_iter()) {
+        if is_spread {
+            return Err(format!("can't use spread operator in list assigment"));
+        }
+
+        if let Err(e) = assign(env, expr, rhs) {
+            return Err(e);
+        }
+    }
+
+    match unspread_expr {
+        Expr::Var{name} => {
+            assign_var(env, name, Value::List{xs: rhs_rest})
+        }
+        _ => {
+            Err(format!("can only unspread to a variable"))
+        }
+    }
+}
+
+fn assign_exact_list(env: &mut HashMap<String, Value>, lhs: Vec<ListItem>, rhs: Vec<Value>)
+    -> Result<(),String>
+{
+    if lhs.len() != rhs.len() {
+        return Err(format!("cannot assign {} item(s) to {} item(s)", rhs.len(), lhs.len()));
+    }
+
+    for (ListItem{expr, is_spread, ..}, rhs) in lhs.into_iter().zip(rhs.into_iter()) {
         if is_spread {
             return Err(format!("can't use spread operator in list assigment"));
         }

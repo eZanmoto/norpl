@@ -44,15 +44,17 @@ pub Expr_: Expr = {
 
 pub ExprList: Vec<ListItem> = {
     () => vec![],
-    <head:Expr> <spread:".."?> => vec![ListItem{
+    <unspread:".."?> <head:Expr> <spread:".."?> => vec![ListItem{
         expr: head,
         is_spread: spread.is_some(),
+        is_unspread: unspread.is_some(),
     }],
     <head:Expr> <spread:".."?> "," <tail:ExprList> => {
         let mut list = tail.clone();
         let head_ = ListItem{
             expr: head,
             is_spread: spread.is_some(),
+            is_unspread: false,
         };
         list.insert(0, head_);
 

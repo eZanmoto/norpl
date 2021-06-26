@@ -1,6 +1,8 @@
 xs = ['b', 'c'];
 ys = [xs.., 'a', xs..];
-[a, b, _, d, d] = ys;
+[a, _, _, d, _] = ys;
 print(a);
-print(b);
 print(d);
+
+[_, _, ..zs] = ys;
+print(zs);
