@@ -113,7 +113,7 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
             }
         },
 
-        Stmt::For{name, iter, stmts} => {
+        Stmt::For{lhs, iter, stmts} => {
             let iter_ =
                 match eval_expr(env, &iter) {
                     Ok(v) => v,
@@ -127,7 +127,11 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
                 };
 
             while vals.len() > 0 {
-                if let Err(e) = assign_var(env, name.clone(), vals.remove(0)) {
+                // TODO `lhs.clone()` is being used here because
+                // `assign_unspread_list` is destructive; this can be updated
+                // to a reference if this function is updated to be
+                // non-destructive.
+                if let Err(e) = assign(env, lhs.clone(), vals.remove(0)) {
                     return Err(e);
                 }
 

@@ -18,8 +18,8 @@ pub Stmt: Stmt = {
 
     <stmt:IfStmt> => stmt,
     "while" <cond:Expr> "{" <stmts:Stmt*> "}" => Stmt::While{cond, stmts},
-    "for" <name:Ident> "in" <iter:Expr> "{" <stmts:Stmt*> "}" =>
-        Stmt::For{name, iter, stmts},
+    "for" <lhs:Expr> "in" <iter:Expr> "{" <stmts:Stmt*> "}" =>
+        Stmt::For{lhs, iter, stmts},
 }
 
 pub IfStmt: Stmt = {

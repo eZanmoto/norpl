@@ -14,7 +14,7 @@ pub enum Stmt {
 
     If{cond: Expr, if_stmts: Vec<Stmt>, else_stmts: Option<Vec<Stmt>>},
     While{cond: Expr, stmts: Vec<Stmt>},
-    For{name: String, iter: Expr, stmts: Vec<Stmt>},
+    For{lhs: Expr, iter: Expr, stmts: Vec<Stmt>},
 
     Expr{expr: Expr},
 }

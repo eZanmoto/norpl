@@ -1,12 +1,13 @@
-xs = ['b', 'c'];
-ys = [xs.., 'a', xs..];
-[_, _, ..zs] = ys;
-for z in zs {
-        print(z);
+zs = [
+    ['a', 1, print],
+    ['b', 2, print],
+    ['c', 3, print],
+];
+for [k, ..vs] in zs {
+    print(k);
+    print(vs);
 }
-
-# Output:
-#
-# a
-# b
-# c
+for [k, v] in zs {
+    print(k);
+    print(v);
+}
