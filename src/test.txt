@@ -1,13 +1,22 @@
-zs = [
-    ['a', 1, print],
-    ['b', 2, print],
-    ['c', 3, print],
-];
-for [k, ..vs] in zs {
-    print(k);
-    print(vs);
+fn half(n) {
+    return n / 2;
 }
-for [k, v] in zs {
-    print(k);
-    print(v);
-}
+
+print(half(4));
+
+# let x = 1;
+#
+# fn f(a, b, c) {
+#     d := a + b;
+#     c := d + c + x;
+#     x = 2;
+#
+#     x := 5;
+#
+#     fn f(a, b, c) {
+#         x = 4;
+#     }
+#
+#     let x = 3;
+#     return c;
+# }

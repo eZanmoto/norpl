@@ -13,12 +13,26 @@ pub Prog: Prog = {
 pub Stmt: Stmt = {
     <expr:Expr> ";" => Stmt::Expr{expr},
 
+    <lhs:Expr> ":=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
     <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Plus, rhs},
 
     <stmt:IfStmt> => stmt,
     "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
     "for" <lhs:Expr> "in" <iter:Expr> <stmts:Block> => Stmt::For{lhs, iter, stmts},
+
+    "fn" <name:Ident> "(" <args:ArgNames> ")" <stmts:Block> => Stmt::Func{name, args, stmts}
+}
+
+pub ArgNames: Vec<String> = {
+    () => vec![],
+    <head:Ident> => vec![head],
+    <head:Ident> "," <tail:ArgNames> => {
+        let mut list = tail.clone();
+        list.insert(0, head);
+
+        list
+    },
 }
 
 pub Block: Vec<Stmt> = {
@@ -42,9 +56,20 @@ pub Expr_: Expr = {
     <n:IntLiteral> => Expr::Int{n},
     <s:StrLiteral> => Expr::Str{s},
 
-    <func:Ident> "(" <arg:Expr> ")" => Expr::Call{func, args: vec![arg]},
+    <func:Ident> "(" <args:ParamList> ")" => Expr::Call{func, args: args},
 
     "[" <xs:ExprList> "]" => Expr::List{xs},
+}
+
+pub ParamList: Vec<Expr> = {
+    () => vec![],
+    <head:Expr> => vec![head],
+    <head:Expr> "," <tail:ParamList> => {
+        let mut list = tail.clone();
+        list.insert(0, head);
+
+        list
+    },
 }
 
 pub ExprList: Vec<ListItem> = {

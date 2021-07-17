@@ -6,10 +6,13 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 mod ast;
 mod eval;
 
+use eval::ScopeStack;
 use eval::Value;
 
 #[macro_use]
@@ -25,11 +28,12 @@ lalrpop_mod!(
 fn main() {
     let test = read_test();
 
-    let mut env: HashMap<String, Value> = HashMap::new();
-    env.insert("print".to_string(), Value::Func{f: print_});
+    let mut global_frame: HashMap<String, Value> = HashMap::new();
+    global_frame.insert("print".to_string(), Value::BuiltInFunc{f: print_});
 
+    let mut scopes = ScopeStack::new(vec![Arc::new(Mutex::new(global_frame))]);
     let ast = parser::ProgParser::new().parse(&test).unwrap();
-    let result = eval::eval_prog(&mut env, &ast);
+    let result = eval::eval_prog(&mut scopes, &ast);
 
     println!("{:?}", result);
 }

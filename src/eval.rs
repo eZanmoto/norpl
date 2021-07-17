@@ -3,20 +3,35 @@
 // licence that can be found in the LICENCE file.
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use ast::*;
 
-pub fn eval_prog(env: &mut HashMap<String, Value>, Prog::Body{stmts}: &Prog)
+pub fn eval_prog(scopes: &mut ScopeStack, Prog::Body{stmts}: &Prog)
     -> Result<(),String>
 {
-    eval_stmts(env, &stmts)
+    // TODO This introduces a new, redundant scope. It may be considered to
+    // squash this new scope into the global scope.
+    eval_stmts_in_new_scope(scopes, &stmts)
 }
 
-pub fn eval_stmts(env: &mut HashMap<String, Value>, stmts: &Vec<Stmt>)
+pub fn eval_stmts_in_new_scope(
+    outer_scopes: &mut ScopeStack,
+    stmts: &Vec<Stmt>,
+)
     -> Result<(),String>
 {
+    eval_stmts(outer_scopes, HashMap::<String, Value>::new(), stmts)
+}
+
+pub fn eval_stmts(scopes: &mut ScopeStack, inner_scope: Scope, stmts: &Vec<Stmt>)
+    -> Result<(),String>
+{
+    let mut inner_scopes = scopes.new_from_push(inner_scope);
+
     for stmt in stmts {
-        if let Err(e) = eval_stmt(env, &stmt) {
+        if let Err(e) = eval_stmt(&mut inner_scopes, &stmt) {
             return Err(e);
         }
     }
@@ -24,38 +39,51 @@ pub fn eval_stmts(env: &mut HashMap<String, Value>, stmts: &Vec<Stmt>)
     Ok(())
 }
 
-fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
+fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
     -> Result<(),String>
 {
     match stmt {
         Stmt::Expr{expr} => {
-            if let Err(e) = eval_expr(env, &expr) {
+            if let Err(e) = eval_expr(scopes, &expr) {
+                return Err(e);
+            }
+        },
+
+        Stmt::Declare{lhs, rhs} => {
+            let v =
+                match eval_expr(scopes, &rhs) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            // TODO Consider whether `clone()` can be avoided here.
+            if let Err(e) = bind(scopes, lhs.clone(), v, BindType::Declaration) {
                 return Err(e);
             }
         },
 
         Stmt::Assign{lhs, rhs} => {
             let v =
-                match eval_expr(env, &rhs) {
+                match eval_expr(scopes, &rhs) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
             // TODO Consider whether `clone()` can be avoided here.
-            if let Err(e) = assign(env, lhs.clone(), v) {
+            if let Err(e) = bind(scopes, lhs.clone(), v, BindType::Assignment) {
                 return Err(e);
             }
         },
 
         Stmt::OpAssign{name, op, rhs} => {
             let lhs =
-                match env.get(name) {
+                match scopes.get(name) {
                     Some(v) => v.clone(),
                     None => return Err(format!("'{}' isn't defined", name)),
                 };
 
             let rhs =
-                match eval_expr(env, &rhs) {
+                match eval_expr(scopes, &rhs) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -66,12 +94,15 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
                     Err(e) => return Err(e),
                 };
 
-            env.insert(name.clone(), v_);
+            let r = bind_name(scopes, name.to_string(), v_, BindType::Assignment);
+            if let Err(e) = r {
+                return Err(e);
+            }
         },
 
         Stmt::If{cond, if_stmts, else_stmts} => {
             let cond =
-                match eval_expr(env, &cond) {
+                match eval_expr(scopes, &cond) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -83,16 +114,16 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
                 };
 
             if b {
-                return eval_stmts(env, &if_stmts);
+                return eval_stmts_in_new_scope(scopes, &if_stmts);
             } else if let Some(stmts) = else_stmts {
-                return eval_stmts(env, &stmts);
+                return eval_stmts_in_new_scope(scopes, &stmts);
             }
         },
 
         Stmt::While{cond, stmts} => {
             loop {
                 let cond =
-                    match eval_expr(env, &cond) {
+                    match eval_expr(scopes, &cond) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -107,7 +138,7 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
                     break;
                 }
 
-                if let Err(e) = eval_stmts(env, &stmts) {
+                if let Err(e) = eval_stmts_in_new_scope(scopes, &stmts) {
                     return Err(e);
                 }
             }
@@ -115,7 +146,7 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
 
         Stmt::For{lhs, iter, stmts} => {
             let iter_ =
-                match eval_expr(env, &iter) {
+                match eval_expr(scopes, &iter) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -128,16 +159,30 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
 
             while vals.len() > 0 {
                 // TODO `lhs.clone()` is being used here because
-                // `assign_unspread_list` is destructive; this can be updated
-                // to a reference if this function is updated to be
+                // `bind_unspread_list` is destructive; this can be updated to
+                // a reference if this function is updated to be
                 // non-destructive.
-                if let Err(e) = assign(env, lhs.clone(), vals.remove(0)) {
+                let r = bind(scopes, lhs.clone(), vals.remove(0), BindType::Declaration);
+                if let Err(e) = r {
                     return Err(e);
                 }
 
-                if let Err(e) = eval_stmts(env, &stmts) {
+                if let Err(e) = eval_stmts_in_new_scope(scopes, &stmts) {
                     return Err(e);
                 }
+            }
+        },
+
+        Stmt::Func{name, args, stmts} => {
+            let v = Value::Func{
+                args: args.clone(),
+                stmts: stmts.clone(),
+                closure: scopes.clone(),
+            };
+
+            let r = bind_name(scopes, name.clone(), v, BindType::Declaration);
+            if let Err(e) = r {
+                return Err(e);
             }
         },
 
@@ -147,17 +192,17 @@ fn eval_stmt(env: &mut HashMap<String, Value>, stmt: &Stmt)
     Ok(())
 }
 
-// TODO `assign` doesn't check for uniqueness among variable names for now,
+// TODO `bind` doesn't check for uniqueness among variable names for now,
 // meaning that multiple instances of the same variable may be overwritten in
 // the same operation. For example, `[x, x] = [1, 2]` will result in `x` having
 // the value 2, instead of reporting the fact that the first instance of the
 // assigment is effectively redundant.
-fn assign(env: &mut HashMap<String, Value>, lhs: Expr, rhs: Value)
+fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: Value, bt: BindType)
     -> Result<(),String>
 {
     match lhs {
         Expr::Var{name} => {
-            assign_var(env, name, rhs)
+            bind_name(scopes, name, rhs, bt)
         }
 
         Expr::List{xs} => {
@@ -167,44 +212,61 @@ fn assign(env: &mut HashMap<String, Value>, lhs: Expr, rhs: Value)
                     _ => return Err(format!("can't destructure non-list into list")),
                 };
 
-            assign_list(env, xs, ys)
+            bind_list(scopes, xs, ys, bt)
         },
 
-        Expr::Int{..} => return Err(format!("cannot assign to an integer literal")),
-        Expr::Str{..} => return Err(format!("cannot assign to a string literal")),
-        Expr::Op{..} => return Err(format!("cannot assign to an operation")),
-        Expr::Call{..} => return Err(format!("cannot assign to a function call")),
+        Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
+        Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
+        Expr::Op{..} => return Err(format!("cannot bind to an operation")),
+        Expr::Call{..} => return Err(format!("cannot bind to a function call")),
     }
 }
 
-fn assign_var(env: &mut HashMap<String, Value>, name: String, rhs: Value)
+#[derive(Clone,Copy)]
+enum BindType {
+    Assignment,
+    Declaration,
+}
+
+fn bind_name(scopes: &mut ScopeStack, name: String, rhs: Value, bind_type: BindType)
     -> Result<(),String>
 {
-    if name != "_" {
-        env.insert(name, rhs);
+    if name == "_" {
+        return Ok(())
+    }
+
+    match bind_type {
+        BindType::Assignment => {
+            if !scopes.assign(name.clone(), rhs) {
+                return Err(format!("'{}' isn't defined", name));
+            }
+        },
+        BindType::Declaration => {
+            scopes.declare(name, rhs)
+        },
     }
 
     Ok(())
 }
 
-fn assign_list(env: &mut HashMap<String, Value>, lhs: Vec<ListItem>, rhs: Vec<Value>)
+fn bind_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<Value>, bt: BindType)
     -> Result<(),String>
 {
     if lhs.len() == 0 {
         if lhs.len() != rhs.len() {
-            return Err(format!("cannot assign {} item(s) to {} item(s)", rhs.len(), lhs.len()));
+            return Err(format!("cannot bind {} item(s) to {} item(s)", rhs.len(), lhs.len()));
         }
         return Ok(())
     }
 
     let ListItem{is_unspread, ..} = lhs[lhs.len()-1];
     if is_unspread {
-        return assign_unspread_list(env, lhs, rhs);
+        return bind_unspread_list(scopes, lhs, rhs, bt);
     }
-    return assign_exact_list(env, lhs, rhs);
+    return bind_exact_list(scopes, lhs, rhs, bt);
 }
 
-fn assign_unspread_list(env: &mut HashMap<String, Value>, mut lhs: Vec<ListItem>, mut rhs: Vec<Value>)
+fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: Vec<Value>, bt: BindType)
     -> Result<(),String>
 {
     if lhs.len() > rhs.len() {
@@ -224,14 +286,14 @@ fn assign_unspread_list(env: &mut HashMap<String, Value>, mut lhs: Vec<ListItem>
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = assign(env, expr, rhs) {
+        if let Err(e) = bind(scopes, expr, rhs, bt) {
             return Err(e);
         }
     }
 
     match unspread_expr {
         Expr::Var{name} => {
-            assign_var(env, name, Value::List{xs: rhs_rest})
+            bind_name(scopes, name, Value::List{xs: rhs_rest}, bt)
         }
         _ => {
             Err(format!("can only unspread to a variable"))
@@ -239,11 +301,11 @@ fn assign_unspread_list(env: &mut HashMap<String, Value>, mut lhs: Vec<ListItem>
     }
 }
 
-fn assign_exact_list(env: &mut HashMap<String, Value>, lhs: Vec<ListItem>, rhs: Vec<Value>)
+fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<Value>, bt: BindType)
     -> Result<(),String>
 {
     if lhs.len() != rhs.len() {
-        return Err(format!("cannot assign {} item(s) to {} item(s)", rhs.len(), lhs.len()));
+        return Err(format!("cannot bind {} item(s) to {} item(s)", rhs.len(), lhs.len()));
     }
 
     for (ListItem{expr, is_spread, ..}, rhs) in lhs.into_iter().zip(rhs.into_iter()) {
@@ -251,7 +313,7 @@ fn assign_exact_list(env: &mut HashMap<String, Value>, lhs: Vec<ListItem>, rhs: 
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = assign(env, expr, rhs) {
+        if let Err(e) = bind(scopes, expr, rhs, bt) {
             return Err(e);
         }
     }
@@ -259,9 +321,7 @@ fn assign_exact_list(env: &mut HashMap<String, Value>, lhs: Vec<ListItem>, rhs: 
     Ok(())
 }
 
-fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
-    -> Result<Value,String>
-{
+fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
     match expr {
         Expr::Int{n} => Ok(Value::Int{n: n.clone()}),
 
@@ -272,7 +332,7 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
 
             for item in xs {
                 let v =
-                    match eval_expr(env, &item.expr) {
+                    match eval_expr(scopes, &item.expr) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -296,7 +356,7 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
 
             let mut vals = vec![];
             for expr in exprs {
-                match eval_expr(env, &*expr) {
+                match eval_expr(scopes, &*expr) {
                     Ok(v) => vals.push(v),
                     Err(e) => return Err(e),
                 }
@@ -310,7 +370,7 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
         },
 
         Expr::Var{name} => {
-            match env.get(name) {
+            match scopes.get(name) {
                 Some(v) => Ok(v.clone()),
                 None => Err(format!("'{}' isn't defined", name)),
             }
@@ -318,19 +378,29 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
 
         Expr::Call{func, args} => {
             let vals =
-                match eval_exprs(env, &args) {
+                match eval_exprs(scopes, &args) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
             let v =
-                match env.get(func) {
+                match scopes.get(func) {
                     Some(v) => v,
                     None => return Err(format!("'{}' isn't defined", &func)),
                 };
 
-            if let Value::Func{f} = v {
+            if let Value::BuiltInFunc{f} = v {
                 f(vals)
+            } else if let Value::Func{args: arg_names, stmts, closure} = v {
+                let inner_scope: HashMap<String, Value> =
+                    arg_names.clone().into_iter().zip(vals).collect();
+
+                let r = eval_stmts(&mut closure.clone(), inner_scope, &stmts);
+                if let Err(e) = r {
+                    return Err(e);
+                }
+
+                Ok(Value::Null)
             } else {
                 Err(format!("'{}' isn't a function", func))
             }
@@ -340,13 +410,13 @@ fn eval_expr(env: &mut HashMap<String, Value>, expr: &Expr)
     }
 }
 
-pub fn eval_exprs(env: &mut HashMap<String, Value>, exprs: &Vec<Expr>)
+pub fn eval_exprs(scopes: &mut ScopeStack, exprs: &Vec<Expr>)
     -> Result<Vec<Value>,String>
 {
     let mut vals = vec![];
 
     for expr in exprs {
-        match eval_expr(env, &expr) {
+        match eval_expr(scopes, &expr) {
             Ok(v) => vals.push(v),
             Err(e) => return Err(e),
         }
@@ -378,5 +448,59 @@ pub enum Value {
     Str{s: String},
     List{xs: Vec<Value>},
 
-    Func{f: fn(Vec<Value>) -> Result<Value, String>},
+    BuiltInFunc{f: fn(Vec<Value>) -> Result<Value, String>},
+    Func{args: Vec<String>, stmts: Vec<Stmt>, closure: ScopeStack},
+}
+
+#[derive(Clone,Debug)]
+pub struct ScopeStack(Vec<Arc<Mutex<Scope>>>);
+
+pub type Scope = HashMap<String, Value>;
+
+impl ScopeStack {
+    pub fn new(scopes: Vec<Arc<Mutex<Scope>>>) -> ScopeStack {
+        ScopeStack(scopes)
+    }
+
+    fn new_from_push(&self, scope: Scope) -> ScopeStack {
+        let mut scopes = self.0.clone();
+        scopes.push(Arc::new(Mutex::new(scope)));
+
+        ScopeStack::new(scopes)
+    }
+
+    fn declare(&mut self, name: String, v: Value) {
+        self.0.last()
+            .expect("`ScopeStack` stack shouldn't be empty")
+            .lock()
+            .unwrap()
+            .insert(name, v);
+    }
+
+    // `assign` replaces `name` in the topmost scope of this `ScopeStack` and
+    // returns `true`, or else it returns `false` if `name` wasn't found in
+    // this `ScopeStack`.
+    fn assign(&mut self, name: String, v: Value) -> bool {
+        for scope in self.0.iter().rev() {
+            let mut unlocked_scope = scope.lock().unwrap();
+            if unlocked_scope.contains_key(&name) {
+                unlocked_scope.insert(name, v);
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn get(&self, name: &String) -> Option<Value> {
+        for scope in self.0.iter().rev() {
+            let unlocked_scope = scope.lock().unwrap();
+            if let Some(v) = unlocked_scope.get(name) {
+                // TODO Remove `clone()`.
+                return Some(v.clone());
+            }
+        }
+
+        None
+    }
 }
