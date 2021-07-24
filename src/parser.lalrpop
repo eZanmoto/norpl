@@ -15,13 +15,14 @@ pub Stmt: Stmt = {
 
     <lhs:Expr> ":=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
-    <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Plus, rhs},
+    <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Sum, rhs},
 
     <stmt:IfStmt> => stmt,
     "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
     "for" <lhs:Expr> "in" <iter:Expr> <stmts:Block> => Stmt::For{lhs, iter, stmts},
 
-    "fn" <name:Ident> "(" <args:ArgNames> ")" <stmts:Block> => Stmt::Func{name, args, stmts}
+    "fn" <name:Ident> "(" <args:ArgNames> ")" <stmts:Block> => Stmt::Func{name, args, stmts},
+    "return" <expr:Expr> ";" => Stmt::Return{expr},
 }
 
 pub ArgNames: Vec<String> = {
@@ -47,7 +48,14 @@ pub IfStmt: Stmt = {
 }
 
 pub Expr: Expr = {
-    <lhs:Expr> "<" <rhs:Expr_> => Expr::Op{lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Expr> "<" <rhs:Factor> => Expr::Op{op: Op::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+
+    <expr:Factor> => expr,
+}
+
+pub Factor: Expr = {
+    <lhs:Factor> "/" <rhs:Expr_> => Expr::Op{op: Op::Div, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+
     <expr:Expr_> => expr,
 }
 

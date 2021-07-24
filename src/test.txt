@@ -1,6 +1,4 @@
-fn half(n) {
-    return n / 2;
-}
+fn half(n) { return n / 2; }
 
 print(half(4));
 

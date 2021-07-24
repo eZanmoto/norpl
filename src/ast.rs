@@ -18,6 +18,7 @@ pub enum Stmt {
     For{lhs: Expr, iter: Expr, stmts: Vec<Stmt>},
 
     Func{name: String, args: Vec<String>, stmts: Vec<Stmt>},
+    Return{expr: Expr},
 
     Expr{expr: Expr},
 }
@@ -29,7 +30,7 @@ pub enum Expr {
 
     Var{name: String},
 
-    Op{lhs: Box<Expr>, rhs: Box<Expr>},
+    Op{op: Op, lhs: Box<Expr>, rhs: Box<Expr>},
 
     List{xs: Vec<ListItem>},
     Call{func: String, args: Vec<Expr>},
@@ -45,5 +46,8 @@ pub struct ListItem {
 #[derive(Clone,Debug)]
 pub enum Op {
     LT,
-    Plus,
+
+    Sum,
+
+    Div,
 }

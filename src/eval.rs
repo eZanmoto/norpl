@@ -8,39 +8,55 @@ use std::sync::Mutex;
 
 use ast::*;
 
-pub fn eval_prog(scopes: &mut ScopeStack, Prog::Body{stmts}: &Prog)
+pub fn eval_prog(scopes: &mut ScopeStack, global_scope: Scope, Prog::Body{stmts}: &Prog)
     -> Result<(),String>
 {
-    // TODO This introduces a new, redundant scope. It may be considered to
-    // squash this new scope into the global scope.
-    eval_stmts_in_new_scope(scopes, &stmts)
-}
+    let ret_val =
+        match eval_stmts(scopes, global_scope, stmts) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
 
-pub fn eval_stmts_in_new_scope(
-    outer_scopes: &mut ScopeStack,
-    stmts: &Vec<Stmt>,
-)
-    -> Result<(),String>
-{
-    eval_stmts(outer_scopes, HashMap::<String, Value>::new(), stmts)
-}
-
-pub fn eval_stmts(scopes: &mut ScopeStack, inner_scope: Scope, stmts: &Vec<Stmt>)
-    -> Result<(),String>
-{
-    let mut inner_scopes = scopes.new_from_push(inner_scope);
-
-    for stmt in stmts {
-        if let Err(e) = eval_stmt(&mut inner_scopes, &stmt) {
-            return Err(e);
-        }
+    if let Some(_) = ret_val {
+        return Err("`return` outside function".to_string());
     }
 
     Ok(())
 }
 
+// See `eval_stmts` for more information on the values
+// `eval_stmts_in_new_scope` returns.
+pub fn eval_stmts_in_new_scope(
+    outer_scopes: &mut ScopeStack,
+    stmts: &Vec<Stmt>,
+)
+    -> Result<Option<Value>,String>
+{
+    eval_stmts(outer_scopes, HashMap::<String, Value>::new(), stmts)
+}
+
+// `eval_stmts` returns `Some(v)` if one of the statements is evaluates is a a
+// `return` statement, otherwise it returns `None`.
+pub fn eval_stmts(scopes: &mut ScopeStack, inner_scope: Scope, stmts: &Vec<Stmt>)
+    -> Result<Option<Value>,String>
+{
+    let mut inner_scopes = scopes.new_from_push(inner_scope);
+
+    for stmt in stmts {
+        match eval_stmt(&mut inner_scopes, &stmt) {
+            Ok(Some(v)) => return Ok(Some(v)),
+            Err(e) => return Err(e),
+            _ => {},
+        }
+    }
+
+    Ok(None)
+}
+
+// `eval_stmt` returns `Some(v)` if a `return` value is evaluated, otherwise it
+// returns `None`.
 fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
-    -> Result<(),String>
+    -> Result<Option<Value>,String>
 {
     match stmt {
         Stmt::Expr{expr} => {
@@ -186,10 +202,20 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
             }
         },
 
+        Stmt::Return{expr} => {
+            let v =
+                match eval_expr(scopes, expr) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            return Ok(Some(v));
+        },
+
         // _ => return Err(format!("unhandled statement: {:?}", stmt)),
     }
 
-    Ok(())
+    Ok(None)
 }
 
 // TODO `bind` doesn't check for uniqueness among variable names for now,
@@ -351,7 +377,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
             Ok(Value::List{xs: vals})
         },
 
-        Expr::Op{lhs, rhs} => {
+        Expr::Op{op, lhs, rhs} => {
             let exprs = vec![lhs, rhs];
 
             let mut vals = vec![];
@@ -363,7 +389,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
             }
 
             if let [lhs, rhs] = vals.as_slice() {
-                operate(&Op::LT, lhs, rhs)
+                operate(op, lhs, rhs)
             } else {
                 Err(format!("dev error: unexpected slice size"))
             }
@@ -396,11 +422,18 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
                     arg_names.clone().into_iter().zip(vals).collect();
 
                 let r = eval_stmts(&mut closure.clone(), inner_scope, &stmts);
-                if let Err(e) = r {
-                    return Err(e);
-                }
 
-                Ok(Value::Null)
+                match r {
+                    Ok(ret_val) => {
+                        match ret_val {
+                            Some(v) => return Ok(v),
+                            None => return Ok(Value::Null),
+                        }
+                    },
+                    Err(e) => {
+                        return Err(e);
+                    },
+                }
             } else {
                 Err(format!("'{}' isn't a function", func))
             }
@@ -432,7 +465,8 @@ fn operate(op: &Op, lhs: &Value, rhs: &Value)
         (Value::Int{n: lhs}, Value::Int{n: rhs}) => {
             match op {
                 Op::LT => Ok(Value::Bool{b: lhs < rhs}),
-                Op::Plus => Ok(Value::Int{n: lhs + rhs}),
+                Op::Sum => Ok(Value::Int{n: lhs + rhs}),
+                Op::Div => Ok(Value::Int{n: lhs / rhs}),
             }
         },
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),
