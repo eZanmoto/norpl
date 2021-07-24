@@ -241,6 +241,9 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: Value, bt: BindType)
             bind_list(scopes, xs, ys, bt)
         },
 
+        // TODO Implement assignment to indexs.
+        Expr::Index{..} => return Err(format!("cannot bind to an index")),
+
         Expr::Range{..} => return Err(format!("cannot bind to a range")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
         Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
@@ -411,6 +414,39 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
                     .collect();
 
             Ok(Value::List{xs: range})
+        },
+
+        Expr::Index{expr, n} => {
+            let values =
+                match eval_expr(scopes, expr) {
+                    Ok(v) => {
+                        match v {
+                            Value::List{xs} => xs,
+                            _ => return Err(format!("can only index lists")),
+                        }
+                    },
+                    Err(e) => {
+                        return Err(e);
+                    },
+                };
+
+            let index =
+                match eval_expr(scopes, n) {
+                    Ok(v) => {
+                        match v {
+                            Value::Int{n} => n,
+                            _ => return Err(format!("index must be an integer")),
+                        }
+                    },
+                    Err(e) => {
+                        return Err(e);
+                    },
+                };
+
+            match values.get(index as usize) {
+                Some(v) => Ok(v.clone()),
+                None => Err(format!("index out of bounds")),
+            }
         },
 
         Expr::Op{op, lhs, rhs} => {
