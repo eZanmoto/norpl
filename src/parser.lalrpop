@@ -67,6 +67,8 @@ pub Expr_: Expr = {
     <func:Ident> "(" <args:ParamList> ")" => Expr::Call{func, args: args},
 
     "[" <xs:ExprList> "]" => Expr::List{xs},
+
+    "(" <expr:Expr> ")" => expr,
 }
 
 pub ParamList: Vec<Expr> = {
