@@ -18,7 +18,7 @@ pub fn eval_prog(scopes: &mut ScopeStack, global_scope: Scope, Prog::Body{stmts}
         };
 
     if let Some(_) = ret_val {
-        return Err("`return` outside function".to_string());
+        return Err(format!("`return` outside function"));
     }
 
     Ok(())
