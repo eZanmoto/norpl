@@ -33,6 +33,8 @@ pub enum Expr {
     Op{op: Op, lhs: Box<Expr>, rhs: Box<Expr>},
 
     List{xs: Vec<ListItem>},
+    Range{start: Box<Expr>, end: Box<Expr>},
+
     Call{func: String, args: Vec<Expr>},
 }
 

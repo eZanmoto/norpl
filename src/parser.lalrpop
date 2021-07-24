@@ -50,6 +50,9 @@ pub IfStmt: Stmt = {
 pub Expr: Expr = {
     <lhs:Expr> "<" <rhs:Factor> => Expr::Op{op: Op::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
+    <start:Expr> ".." <end:Factor> =>
+        Expr::Range{start: Box::new(start), end: Box::new(end)},
+
     <expr:Factor> => expr,
 }
 

@@ -241,6 +241,7 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: Value, bt: BindType)
             bind_list(scopes, xs, ys, bt)
         },
 
+        Expr::Range{..} => return Err(format!("cannot bind to a range")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
         Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
         Expr::Op{..} => return Err(format!("cannot bind to an operation")),
@@ -375,6 +376,41 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
             }
 
             Ok(Value::List{xs: vals})
+        },
+
+        Expr::Range{start, end} => {
+            let start =
+                match eval_expr(scopes, start) {
+                    Ok(v) => {
+                        match v {
+                            Value::Int{n} => n,
+                            _ => return Err(format!("range end must be an integer")),
+                        }
+                    },
+                    Err(e) => {
+                        return Err(e);
+                    },
+                };
+
+            let end =
+                match eval_expr(scopes, end) {
+                    Ok(v) => {
+                        match v {
+                            Value::Int{n} => n,
+                            _ => return Err(format!("range end must be an integer")),
+                        }
+                    },
+                    Err(e) => {
+                        return Err(e);
+                    },
+                };
+
+            let range =
+                (start..end)
+                    .map(|n| Value::Int{n})
+                    .collect();
+
+            Ok(Value::List{xs: range})
         },
 
         Expr::Op{op, lhs, rhs} => {
