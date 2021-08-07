@@ -4,11 +4,9 @@ fn half(n) {
 
 fn map(f, xs) {
     for i in 0..len(xs) {
-        f(xs[i]);
+        xs[i] = f(xs[i]);
     }
     return xs;
 }
 
 print(map(half, [4, 5, 6]));
-
-# xs[i] = f(xs[i]);

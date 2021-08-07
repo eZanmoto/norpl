@@ -11,7 +11,9 @@ mod ast;
 mod eval;
 
 use eval::ScopeStack;
+use eval::ValRef;
 use eval::Value;
+use parser::ProgParser;
 
 #[macro_use]
 extern crate lalrpop_util;
@@ -26,12 +28,12 @@ lalrpop_mod!(
 fn main() {
     let test = read_test();
 
-    let mut global_frame: HashMap<String, Value> = HashMap::new();
-    global_frame.insert("print".to_string(), Value::BuiltInFunc{f: print_});
-    global_frame.insert("len".to_string(), Value::BuiltInFunc{f: len_});
+    let mut global_frame: HashMap<String, ValRef> = HashMap::new();
+    global_frame.insert("print".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: print_}));
+    global_frame.insert("len".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: len_}));
 
     let mut scopes = ScopeStack::new(vec![]);
-    let ast = parser::ProgParser::new().parse(&test).unwrap();
+    let ast = ProgParser::new().parse(&test).unwrap();
     let result = eval::eval_prog(&mut scopes, global_frame, &ast);
 
     println!("{:?}", result);
@@ -51,20 +53,26 @@ fn read_test() -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn print_(vs: Vec<Value>) -> Result<Value, String> {
+fn print_(vs: Vec<ValRef>) -> Result<ValRef, String> {
     // TODO Remove varargs support.
     println!("{:?}", vs);
 
-    Ok(Value::Null)
+    Ok(eval::new_val_ref(Value::Null))
 }
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn len_(vs: Vec<Value>) -> Result<Value, String> {
+fn len_(vs: Vec<ValRef>) -> Result<ValRef, String> {
     // TODO Handle out-of-bounds access.
-    match &vs[0] {
-        // TODO Investigate casting `usize` to `i64`.
-        Value::List{xs} => Ok(Value::Int{n: xs.len() as i64}),
-        _ => Err(format!("can only call `len` on lists")),
+    match &*vs[0].lock().unwrap() {
+        Value::List{xs} => {
+            // TODO Investigate casting `usize` to `i64`.
+            let n = Value::Int{n: xs.len() as i64};
+
+            Ok(eval::new_val_ref(n))
+        },
+        _ => {
+            Err(format!("can only call `len` on lists"))
+        },
     }
 }

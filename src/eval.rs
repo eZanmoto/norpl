@@ -30,15 +30,15 @@ pub fn eval_stmts_in_new_scope(
     outer_scopes: &mut ScopeStack,
     stmts: &Vec<Stmt>,
 )
-    -> Result<Option<Value>,String>
+    -> Result<Option<ValRef>,String>
 {
-    eval_stmts(outer_scopes, HashMap::<String, Value>::new(), stmts)
+    eval_stmts(outer_scopes, HashMap::<String, ValRef>::new(), stmts)
 }
 
 // `eval_stmts` returns `Some(v)` if one of the statements is evaluates is a a
 // `return` statement, otherwise it returns `None`.
 pub fn eval_stmts(scopes: &mut ScopeStack, inner_scope: Scope, stmts: &Vec<Stmt>)
-    -> Result<Option<Value>,String>
+    -> Result<Option<ValRef>,String>
 {
     let mut inner_scopes = scopes.new_from_push(inner_scope);
 
@@ -56,7 +56,7 @@ pub fn eval_stmts(scopes: &mut ScopeStack, inner_scope: Scope, stmts: &Vec<Stmt>
 // `eval_stmt` returns `Some(v)` if a `return` value is evaluated, otherwise it
 // returns `None`.
 fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
-    -> Result<Option<Value>,String>
+    -> Result<Option<ValRef>,String>
 {
     match stmt {
         Stmt::Expr{expr} => {
@@ -105,12 +105,17 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                 };
 
             let v_ =
-                match operate(&op, &lhs, &rhs) {
+                match operate(&op, &lhs.lock().unwrap(), &rhs.lock().unwrap()) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
-            let r = bind_name(scopes, name.to_string(), v_, BindType::Assignment);
+            let r = bind_name(
+                scopes,
+                name.to_string(),
+                new_val_ref(v_),
+                BindType::Assignment,
+            );
             if let Err(e) = r {
                 return Err(e);
             }
@@ -124,7 +129,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                 };
 
             let b =
-                match cond {
+                match *cond.lock().unwrap() {
                     Value::Bool{b} => b,
                     _ => return Err(format!("condition must be a `bool`")),
                 };
@@ -145,7 +150,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     };
 
                 let b =
-                    match cond {
+                    match *cond.lock().unwrap() {
                         Value::Bool{b} => b,
                         _ => return Err(format!("condition must be a `bool`")),
                     };
@@ -167,36 +172,42 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     Err(e) => return Err(e),
                 };
 
-            let mut vals =
-                match iter_ {
-                    Value::List{xs} => xs,
-                    _ => return Err(format!("iterator must be a `list`")),
-                };
+            match &mut *iter_.lock().unwrap() {
+                Value::List{xs} => {
+                    while xs.len() > 0 {
+                        // TODO `lhs.clone()` is being used here because
+                        // `bind_unspread_list` is destructive; this can be updated to
+                        // a reference if this function is updated to be
+                        // non-destructive.
+                        let r = bind(scopes, lhs.clone(), xs.remove(0), BindType::Declaration);
+                        if let Err(e) = r {
+                            return Err(e);
+                        }
 
-            while vals.len() > 0 {
-                // TODO `lhs.clone()` is being used here because
-                // `bind_unspread_list` is destructive; this can be updated to
-                // a reference if this function is updated to be
-                // non-destructive.
-                let r = bind(scopes, lhs.clone(), vals.remove(0), BindType::Declaration);
-                if let Err(e) = r {
-                    return Err(e);
-                }
-
-                if let Err(e) = eval_stmts_in_new_scope(scopes, &stmts) {
-                    return Err(e);
-                }
-            }
+                        if let Err(e) = eval_stmts_in_new_scope(scopes, &stmts) {
+                            return Err(e);
+                        }
+                    }
+                },
+                _ => {
+                    return Err(format!("iterator must be a `list`"));
+                },
+            };
         },
 
         Stmt::Func{name, args, stmts} => {
-            let v = Value::Func{
+            let func = Value::Func{
                 args: args.clone(),
                 stmts: stmts.clone(),
                 closure: scopes.clone(),
             };
 
-            let r = bind_name(scopes, name.clone(), v, BindType::Declaration);
+            let r = bind_name(
+                scopes,
+                name.clone(),
+                new_val_ref(func),
+                BindType::Declaration,
+            );
             if let Err(e) = r {
                 return Err(e);
             }
@@ -223,7 +234,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
 // the same operation. For example, `[x, x] = [1, 2]` will result in `x` having
 // the value 2, instead of reporting the fact that the first instance of the
 // assigment is effectively redundant.
-fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: Value, bt: BindType)
+fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
     -> Result<(),String>
 {
     match lhs {
@@ -232,17 +243,53 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: Value, bt: BindType)
         }
 
         Expr::List{xs} => {
-            let ys =
-                match rhs {
-                    Value::List{xs} => xs,
-                    _ => return Err(format!("can't destructure non-list into list")),
-                };
-
-            bind_list(scopes, xs, ys, bt)
+            match &*rhs.lock().unwrap() {
+                Value::List{xs: ys} => {
+                    // TODO Investigate removing the call to `to_vec()`.
+                    bind_list(scopes, xs, ys.to_vec(), bt)
+                },
+                _ => {
+                    Err(format!("can't destructure non-list into list"))
+                },
+            }
         },
 
-        // TODO Implement assignment to indexs.
-        Expr::Index{..} => return Err(format!("cannot bind to an index")),
+        Expr::Index{expr, n} => {
+            match eval_expr(scopes, &expr) {
+                Ok(xs) => {
+                    match &mut *xs.lock().unwrap() {
+                        Value::List{xs} => {
+
+                            match eval_expr(scopes, &n) {
+                                Ok(index) => {
+                                    match &*index.lock().unwrap() {
+                                        Value::Int{n} => {
+
+                                            xs[*n as usize] = rhs;
+
+                                        },
+                                        _ => return Err(format!("index must be an integer")),
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(e);
+                                },
+                            };
+
+                        },
+                        _ => return Err(format!("can't index non-list")),
+                    }
+                },
+                Err(e) => return Err(e),
+            };
+
+            Ok(())
+        },
+
+        // scope.get("list_item")[n] = rhs
+
+        // v <- scope.get("list_item")
+        // v[n] = rhs
 
         Expr::Range{..} => return Err(format!("cannot bind to a range")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
@@ -258,7 +305,7 @@ enum BindType {
     Declaration,
 }
 
-fn bind_name(scopes: &mut ScopeStack, name: String, rhs: Value, bind_type: BindType)
+fn bind_name(scopes: &mut ScopeStack, name: String, rhs: ValRef, bind_type: BindType)
     -> Result<(),String>
 {
     if name == "_" {
@@ -279,7 +326,7 @@ fn bind_name(scopes: &mut ScopeStack, name: String, rhs: Value, bind_type: BindT
     Ok(())
 }
 
-fn bind_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<Value>, bt: BindType)
+fn bind_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRef>, bt: BindType)
     -> Result<(),String>
 {
     if lhs.len() == 0 {
@@ -296,7 +343,7 @@ fn bind_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<Value>, bt: B
     return bind_exact_list(scopes, lhs, rhs, bt);
 }
 
-fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: Vec<Value>, bt: BindType)
+fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: Vec<ValRef>, bt: BindType)
     -> Result<(),String>
 {
     if lhs.len() > rhs.len() {
@@ -323,7 +370,7 @@ fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: 
 
     match unspread_expr {
         Expr::Var{name} => {
-            bind_name(scopes, name, Value::List{xs: rhs_rest}, bt)
+            bind_name(scopes, name, new_val_ref(Value::List{xs: rhs_rest}), bt)
         }
         _ => {
             Err(format!("can only unspread to a variable"))
@@ -331,7 +378,7 @@ fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: 
     }
 }
 
-fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<Value>, bt: BindType)
+fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRef>, bt: BindType)
     -> Result<(),String>
 {
     if lhs.len() != rhs.len() {
@@ -351,11 +398,11 @@ fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<Value>,
     Ok(())
 }
 
-fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
+fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
     match expr {
-        Expr::Int{n} => Ok(Value::Int{n: n.clone()}),
+        Expr::Int{n} => Ok(new_val_ref(Value::Int{n: n.clone()})),
 
-        Expr::Str{s} => Ok(Value::Str{s: s.clone()}),
+        Expr::Str{s} => Ok(new_val_ref(Value::Str{s: s.clone()})),
 
         Expr::List{xs} => {
             let mut vals = vec![];
@@ -372,20 +419,26 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
                     continue;
                 }
 
-                match v {
-                    Value::List{mut xs} => vals.append(&mut xs),
-                    _ => return Err(format!("only lists can be spread")),
-                }
+                match &*v.lock().unwrap() {
+                    Value::List{xs} => {
+                        for x in xs {
+                            vals.push(x.clone());
+                        }
+                    },
+                    _ => {
+                        return Err(format!("only lists can be spread"));
+                    },
+                };
             }
 
-            Ok(Value::List{xs: vals})
+            Ok(new_val_ref(Value::List{xs: vals}))
         },
 
         Expr::Range{start, end} => {
             let start =
                 match eval_expr(scopes, start) {
                     Ok(v) => {
-                        match v {
+                        match *v.lock().unwrap() {
                             Value::Int{n} => n,
                             _ => return Err(format!("range end must be an integer")),
                         }
@@ -398,7 +451,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
             let end =
                 match eval_expr(scopes, end) {
                     Ok(v) => {
-                        match v {
+                        match *v.lock().unwrap() {
                             Value::Int{n} => n,
                             _ => return Err(format!("range end must be an integer")),
                         }
@@ -410,43 +463,43 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
 
             let range =
                 (start..end)
-                    .map(|n| Value::Int{n})
+                    .map(|n| new_val_ref(Value::Int{n}))
                     .collect();
 
-            Ok(Value::List{xs: range})
+            Ok(new_val_ref(Value::List{xs: range}))
         },
 
         Expr::Index{expr, n} => {
-            let values =
-                match eval_expr(scopes, expr) {
-                    Ok(v) => {
-                        match v {
-                            Value::List{xs} => xs,
-                            _ => return Err(format!("can only index lists")),
-                        }
-                    },
-                    Err(e) => {
-                        return Err(e);
-                    },
-                };
+            match eval_expr(scopes, expr) {
+                Ok(v) => {
+                    match &*v.lock().unwrap() {
+                        Value::List{xs} => {
 
-            let index =
-                match eval_expr(scopes, n) {
-                    Ok(v) => {
-                        match v {
-                            Value::Int{n} => n,
-                            _ => return Err(format!("index must be an integer")),
-                        }
-                    },
-                    Err(e) => {
-                        return Err(e);
-                    },
-                };
+                            match eval_expr(scopes, n) {
+                                Ok(v) => {
+                                    match &*v.lock().unwrap() {
+                                        Value::Int{n} => {
+                                            match xs.get(*n as usize) {
+                                                Some(v) => return Ok(v.clone()),
+                                                None => return Err(format!("index out of bounds")),
+                                            };
+                                        },
+                                        _ => return Err(format!("index must be an integer")),
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(e);
+                                },
+                            }
 
-            match values.get(index as usize) {
-                Some(v) => Ok(v.clone()),
-                None => Err(format!("index out of bounds")),
-            }
+                        },
+                        _ => return Err(format!("can only index lists")),
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                },
+            };
         },
 
         Expr::Op{op, lhs, rhs} => {
@@ -460,18 +513,27 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
                 }
             }
 
-            if let [lhs, rhs] = vals.as_slice() {
-                operate(op, lhs, rhs)
-            } else {
-                Err(format!("dev error: unexpected slice size"))
-            }
+            let v =
+                if let [lhs, rhs] = vals.as_slice() {
+                    match operate(op, &lhs.lock().unwrap(), &rhs.lock().unwrap()) {
+                        Ok(v) => v,
+                        Err(e) => return Err(e),
+                    }
+                } else {
+                    return Err(format!("dev error: unexpected slice size"));
+                };
+
+            Ok(new_val_ref(v))
         },
 
         Expr::Var{name} => {
-            match scopes.get(name) {
-                Some(v) => Ok(v.clone()),
-                None => Err(format!("'{}' isn't defined", name)),
-            }
+            let v =
+                match scopes.get(name) {
+                    Some(v) => v.clone(),
+                    None => return Err(format!("'{}' isn't defined", name)),
+                };
+
+            Ok(v)
         },
 
         Expr::Call{func, args} => {
@@ -481,34 +543,44 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
                     Err(e) => return Err(e),
                 };
 
-            let v =
+            let func_ =
                 match scopes.get(func) {
                     Some(v) => v,
                     None => return Err(format!("'{}' isn't defined", &func)),
                 };
 
-            if let Value::BuiltInFunc{f} = v {
-                f(vals)
-            } else if let Value::Func{args: arg_names, stmts, closure} = v {
-                let inner_scope: HashMap<String, Value> =
-                    arg_names.clone().into_iter().zip(vals).collect();
-
-                let r = eval_stmts(&mut closure.clone(), inner_scope, &stmts);
-
-                match r {
-                    Ok(ret_val) => {
-                        match ret_val {
-                            Some(v) => return Ok(v),
-                            None => return Ok(Value::Null),
+            let v =
+                match &*func_.lock().unwrap() {
+                    Value::BuiltInFunc{f} => {
+                        match f(vals) {
+                            Ok(v) => v,
+                            Err(e) => return Err(e),
                         }
                     },
-                    Err(e) => {
-                        return Err(e);
+                    Value::Func{args: arg_names, stmts, closure} => {
+                        let inner_scope: HashMap<String, ValRef> =
+                            arg_names.clone().into_iter().zip(vals).collect();
+
+                        let r = eval_stmts(&mut closure.clone(), inner_scope, &stmts);
+
+                        match r {
+                            Ok(ret_val) => {
+                                match ret_val {
+                                    Some(v) => v,
+                                    None => new_val_ref(Value::Null),
+                                }
+                            },
+                            Err(e) => {
+                                return Err(e);
+                            },
+                        }
                     },
-                }
-            } else {
-                Err(format!("'{}' isn't a function", func))
-            }
+                    _ => {
+                        return Err(format!("'{}' isn't a function", func));
+                    },
+                };
+
+            Ok(v)
         },
 
         // _ => Err(format!("unhandled expression: {:?}", expr)),
@@ -516,7 +588,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<Value,String> {
 }
 
 pub fn eval_exprs(scopes: &mut ScopeStack, exprs: &Vec<Expr>)
-    -> Result<Vec<Value>,String>
+    -> Result<Vec<ValRef>,String>
 {
     let mut vals = vec![];
 
@@ -545,6 +617,12 @@ fn operate(op: &Op, lhs: &Value, rhs: &Value)
     }
 }
 
+pub fn new_val_ref(v: Value) -> Arc<Mutex<Value>> {
+    return Arc::new(Mutex::new(v));
+}
+
+pub type ValRef = Arc<Mutex<Value>>;
+
 #[derive(Clone,Debug)]
 pub enum Value {
     Null,
@@ -552,16 +630,16 @@ pub enum Value {
     Bool{b: bool},
     Int{n: i64},
     Str{s: String},
-    List{xs: Vec<Value>},
+    List{xs: Vec<ValRef>},
 
-    BuiltInFunc{f: fn(Vec<Value>) -> Result<Value, String>},
+    BuiltInFunc{f: fn(Vec<ValRef>) -> Result<ValRef, String>},
     Func{args: Vec<String>, stmts: Vec<Stmt>, closure: ScopeStack},
 }
 
 #[derive(Clone,Debug)]
 pub struct ScopeStack(Vec<Arc<Mutex<Scope>>>);
 
-pub type Scope = HashMap<String, Value>;
+pub type Scope = HashMap<String, ValRef>;
 
 impl ScopeStack {
     pub fn new(scopes: Vec<Arc<Mutex<Scope>>>) -> ScopeStack {
@@ -575,7 +653,7 @@ impl ScopeStack {
         ScopeStack::new(scopes)
     }
 
-    fn declare(&mut self, name: String, v: Value) {
+    fn declare(&mut self, name: String, v: ValRef) {
         self.0.last()
             .expect("`ScopeStack` stack shouldn't be empty")
             .lock()
@@ -586,7 +664,7 @@ impl ScopeStack {
     // `assign` replaces `name` in the topmost scope of this `ScopeStack` and
     // returns `true`, or else it returns `false` if `name` wasn't found in
     // this `ScopeStack`.
-    fn assign(&mut self, name: String, v: Value) -> bool {
+    fn assign(&mut self, name: String, v: ValRef) -> bool {
         for scope in self.0.iter().rev() {
             let mut unlocked_scope = scope.lock().unwrap();
             if unlocked_scope.contains_key(&name) {
@@ -598,7 +676,7 @@ impl ScopeStack {
         false
     }
 
-    fn get(&self, name: &String) -> Option<Value> {
+    fn get(&self, name: &String) -> Option<ValRef> {
         for scope in self.0.iter().rev() {
             let unlocked_scope = scope.lock().unwrap();
             if let Some(v) = unlocked_scope.get(name) {
