@@ -36,6 +36,8 @@ pub enum Expr {
     Range{start: Box<Expr>, end: Box<Expr>},
     Index{expr: Box<Expr>, n: Box<Expr>},
 
+    Object{props: Vec<Prop>},
+
     Call{func: String, args: Vec<Expr>},
 }
 
@@ -44,6 +46,12 @@ pub struct ListItem {
     pub expr: Expr,
     pub is_spread: bool,
     pub is_unspread: bool,
+}
+
+#[derive(Clone,Debug)]
+pub struct Prop {
+    pub name: String,
+    pub value: Expr,
 }
 
 #[derive(Clone,Debug)]

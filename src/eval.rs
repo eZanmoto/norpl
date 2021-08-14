@@ -286,10 +286,8 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
             Ok(())
         },
 
-        // scope.get("list_item")[n] = rhs
-
-        // v <- scope.get("list_item")
-        // v[n] = rhs
+        // TODO Add support for object destructuring.
+        Expr::Object{..} => return Err(format!("cannot bind to an object")),
 
         Expr::Range{..} => return Err(format!("cannot bind to a range")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
@@ -502,6 +500,22 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
             };
         },
 
+        Expr::Object{props} => {
+            let mut vals = HashMap::<String, ValRef>::new();
+
+            for prop in props {
+                let v =
+                    match eval_expr(scopes, &prop.value) {
+                        Ok(v) => v,
+                        Err(e) => return Err(e),
+                    };
+
+                vals.insert(prop.name.clone(), v);
+            }
+
+            Ok(new_val_ref(Value::Object{props: vals}))
+        },
+
         Expr::Op{op, lhs, rhs} => {
             let exprs = vec![lhs, rhs];
 
@@ -631,6 +645,7 @@ pub enum Value {
     Int{n: i64},
     Str{s: String},
     List{xs: Vec<ValRef>},
+    Object{props: HashMap<String,ValRef>},
 
     BuiltInFunc{f: fn(Vec<ValRef>) -> Result<ValRef, String>},
     Func{args: Vec<String>, stmts: Vec<Stmt>, closure: ScopeStack},

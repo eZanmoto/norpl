@@ -74,6 +74,8 @@ pub Expr_: Expr = {
 
     "[" <xs:ExprList> "]" => Expr::List{xs},
 
+    "{" <props:PropList> "}" => Expr::Object{props},
+
     "(" <expr:Expr> ")" => expr,
 }
 
@@ -106,6 +108,21 @@ pub ExprList: Vec<ListItem> = {
 
         list
     },
+}
+
+pub PropList: Vec<Prop> = {
+    () => vec![],
+    <head:Prop> => vec![head],
+    <head:Prop> "," <tail:PropList> => {
+        let mut list = tail.clone();
+        list.insert(0, head);
+
+        list
+    },
+}
+
+pub Prop: Prop = {
+    <name:StrLiteral> ":" <value:Expr> => Prop{name, value},
 }
 
 Ident: String = {
