@@ -53,8 +53,8 @@ pub Expr: Expr = {
     <start:Expr> ".." <end:Factor> =>
         Expr::Range{start: Box::new(start), end: Box::new(end)},
 
-    <expr:Expr> "[" <n:Expr> "]" =>
-        Expr::Index{expr: Box::new(expr), n: Box::new(n)},
+    <expr:Expr> "[" <location:Expr> "]" =>
+        Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 
     <expr:Factor> => expr,
 }

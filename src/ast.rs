@@ -34,7 +34,7 @@ pub enum Expr {
 
     List{xs: Vec<ListItem>},
     Range{start: Box<Expr>, end: Box<Expr>},
-    Index{expr: Box<Expr>, n: Box<Expr>},
+    Index{expr: Box<Expr>, location: Box<Expr>},
 
     Object{props: Vec<Prop>},
 

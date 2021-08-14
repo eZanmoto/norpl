@@ -3,5 +3,8 @@ x := {
     'b': 2,
     'c': 3,
 };
+y := 'a';
 
 print(x);
+print(x['a']);
+print(x[y]);

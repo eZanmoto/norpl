@@ -254,19 +254,16 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
             }
         },
 
-        Expr::Index{expr, n} => {
+        Expr::Index{expr, location} => {
             match eval_expr(scopes, &expr) {
                 Ok(xs) => {
                     match &mut *xs.lock().unwrap() {
                         Value::List{xs} => {
-
-                            match eval_expr(scopes, &n) {
+                            match eval_expr(scopes, &location) {
                                 Ok(index) => {
                                     match &*index.lock().unwrap() {
                                         Value::Int{n} => {
-
                                             xs[*n as usize] = rhs;
-
                                         },
                                         _ => return Err(format!("index must be an integer")),
                                     }
@@ -275,7 +272,6 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
                                     return Err(e);
                                 },
                             };
-
                         },
                         _ => return Err(format!("can't index non-list")),
                     }
@@ -467,13 +463,12 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
             Ok(new_val_ref(Value::List{xs: range}))
         },
 
-        Expr::Index{expr, n} => {
+        Expr::Index{expr, location} => {
             match eval_expr(scopes, expr) {
                 Ok(v) => {
                     match &*v.lock().unwrap() {
                         Value::List{xs} => {
-
-                            match eval_expr(scopes, n) {
+                            match eval_expr(scopes, location) {
                                 Ok(v) => {
                                     match &*v.lock().unwrap() {
                                         Value::Int{n} => {
@@ -489,9 +484,28 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                                     return Err(e);
                                 },
                             }
-
                         },
-                        _ => return Err(format!("can only index lists")),
+
+                        Value::Object{props} => {
+                            match eval_expr(scopes, location) {
+                                Ok(v) => {
+                                    match &*v.lock().unwrap() {
+                                        Value::Str{s: name} => {
+                                            match props.get(name) {
+                                                Some(v) => return Ok(v.clone()),
+                                                None => return Err(format!("property name not found")),
+                                            };
+                                        },
+                                        _ => return Err(format!("property name must be a string")),
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(e);
+                                },
+                            }
+                        },
+
+                        _ => return Err(format!("can only index lists and objects")),
                     }
                 },
                 Err(e) => {
