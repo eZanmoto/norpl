@@ -8,3 +8,7 @@ y := 'a';
 print(x);
 print(x['a']);
 print(x[y]);
+
+x[y] = 'b';
+x['d'] = 'd';
+print(x);

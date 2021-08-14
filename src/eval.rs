@@ -256,13 +256,15 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
 
         Expr::Index{expr, location} => {
             match eval_expr(scopes, &expr) {
-                Ok(xs) => {
-                    match &mut *xs.lock().unwrap() {
+                Ok(value) => {
+                    match &mut *value.lock().unwrap() {
                         Value::List{xs} => {
                             match eval_expr(scopes, &location) {
                                 Ok(index) => {
                                     match &*index.lock().unwrap() {
                                         Value::Int{n} => {
+                                            // TODO Handle out-of-bounds
+                                            // assignment.
                                             xs[*n as usize] = rhs;
                                         },
                                         _ => return Err(format!("index must be an integer")),
@@ -273,7 +275,24 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
                                 },
                             };
                         },
-                        _ => return Err(format!("can't index non-list")),
+
+                        Value::Object{props} => {
+                            match eval_expr(scopes, &location) {
+                                Ok(index) => {
+                                    match &*index.lock().unwrap() {
+                                        Value::Str{s} => {
+                                            props.insert(s.to_string(), rhs);
+                                        },
+                                        _ => return Err(format!("index must be an integer")),
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(e);
+                                },
+                            };
+                        },
+
+                        _ => return Err(format!("can only assign to indices of lists and objects")),
                     }
                 },
                 Err(e) => return Err(e),
