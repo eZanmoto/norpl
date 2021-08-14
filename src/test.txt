@@ -3,12 +3,19 @@ x := {
     'b': 2,
     'c': 3,
 };
-y := 'a';
+
+y := {
+    x..,
+    'b': 5,
+    'd': 4,
+};
+
+z := {
+    'b': 5,
+    'd': 4,
+    x..,
+};
 
 print(x);
-print(x['a']);
-print(x[y]);
-
-x[y] = 'b';
-x['d'] = 'd';
-print(x);
+print(y);
+print(z);

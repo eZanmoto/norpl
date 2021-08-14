@@ -110,10 +110,10 @@ pub ExprList: Vec<ListItem> = {
     },
 }
 
-pub PropList: Vec<Prop> = {
+pub PropList: Vec<PropItem> = {
     () => vec![],
-    <head:Prop> => vec![head],
-    <head:Prop> "," <tail:PropList> => {
+    <head:PropItem> => vec![head],
+    <head:PropItem> "," <tail:PropList> => {
         let mut list = tail.clone();
         list.insert(0, head);
 
@@ -121,8 +121,9 @@ pub PropList: Vec<Prop> = {
     },
 }
 
-pub Prop: Prop = {
-    <name:StrLiteral> ":" <value:Expr> => Prop{name, value},
+pub PropItem: PropItem = {
+    <name:StrLiteral> ":" <value:Expr> => PropItem::Pair{name, value},
+    <expr:Expr> <spread:".."> => PropItem::Spread{expr},
 }
 
 Ident: String = {

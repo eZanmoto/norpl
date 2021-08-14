@@ -537,13 +537,36 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
             let mut vals = HashMap::<String, ValRef>::new();
 
             for prop in props {
-                let v =
-                    match eval_expr(scopes, &prop.value) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    };
+                match prop {
+                    PropItem::Pair{name, value} => {
+                        let v =
+                            match eval_expr(scopes, &value) {
+                                Ok(v) => v,
+                                Err(e) => return Err(e),
+                            };
 
-                vals.insert(prop.name.clone(), v);
+                        vals.insert(name.clone(), v);
+                    },
+                    PropItem::Spread{expr} => {
+                        let v =
+                            match eval_expr(scopes, &expr) {
+                                Ok(v) => v,
+                                Err(e) => return Err(e),
+                            };
+
+                        match &*v.lock().unwrap() {
+                            Value::Object{props} => {
+                                for (name, value) in props.iter() {
+                                    vals.insert(name.to_string(), value.clone());
+                                }
+                            },
+
+                            _ => {
+                                return Err(format!("can only spread objects in objects"));
+                            },
+                        };
+                    },
+                }
             }
 
             Ok(new_val_ref(Value::Object{props: vals}))
