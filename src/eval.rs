@@ -301,8 +301,16 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
             Ok(())
         },
 
-        // TODO Add support for object destructuring.
-        Expr::Object{..} => return Err(format!("cannot bind to an object")),
+        Expr::Object{props: lhs_props} => {
+            match &*rhs.lock().unwrap() {
+                Value::Object{props: rhs_props} => {
+                    bind_object(scopes, lhs_props, rhs_props.clone(), bt)
+                },
+                _ => {
+                    Err(format!("can't destructure non-object into object"))
+                },
+            }
+        },
 
         Expr::Range{..} => return Err(format!("cannot bind to a range")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
@@ -405,6 +413,44 @@ fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRef>
 
         if let Err(e) = bind(scopes, expr, rhs, bt) {
             return Err(e);
+        }
+    }
+
+    Ok(())
+}
+
+fn bind_object(
+    scopes: &mut ScopeStack,
+    lhs: Vec<PropItem>,
+    rhs: HashMap<String,ValRef>,
+    bt: BindType,
+)
+    -> Result<(),String>
+{
+    // In contrast with lists, we don't explicitly require that the number of
+    // elements in the source object is equal to the number of elements in the
+    // target object.
+
+    for prop_item in lhs {
+        match prop_item {
+            PropItem::Spread{..} => {
+                return Err(format!("can't use spread operator in object assigment"));
+            },
+            PropItem::Pair{name, value: new_lhs, name_is_str} => {
+                if name_is_str {
+                    return Err(format!("keys in object destructuring can't be strings (must identifier shorthand)"));
+                }
+
+                let new_rhs =
+                    match rhs.get(&name) {
+                        Some(v) => v.clone(),
+                        None => return Err(format!("property '{}' not found in source object", name)),
+                    };
+
+                if let Err(e) = bind(scopes, new_lhs, new_rhs, bt) {
+                    return Err(format!("couldn't bind '{}': {}", name, e));
+                }
+            },
         }
     }
 
@@ -538,7 +584,11 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
 
             for prop in props {
                 match prop {
-                    PropItem::Pair{name, value} => {
+                    PropItem::Pair{name, value, name_is_str} => {
+                        if !name_is_str {
+                            return Err(format!("keys in object literals must be strings (can't use identifier shorthand)"));
+                        }
+
                         let v =
                             match eval_expr(scopes, &value) {
                                 Ok(v) => v,
