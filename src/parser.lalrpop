@@ -82,6 +82,9 @@ pub Factor: Expr = {
 }
 
 pub Expr_: Expr = {
+    "true" => Expr::Bool{b: true},
+    "false" => Expr::Bool{b: false},
+
     <name:Ident> => Expr::Var{name},
     <n:IntLiteral> => Expr::Int{n},
     <s:StrLiteral> => Expr::Str{s},
