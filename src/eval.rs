@@ -316,6 +316,7 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
         Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
         Expr::Op{..} => return Err(format!("cannot bind to an operation")),
+        Expr::Func{..} => return Err(format!("cannot bind to a function literal")),
         Expr::Call{..} => return Err(format!("cannot bind to a function call")),
     }
 }
@@ -701,6 +702,15 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                 };
 
             Ok(v)
+        },
+
+        Expr::Func{args, stmts} => {
+            let f = Value::Func{
+                args: args.clone(),
+                stmts: stmts.clone(),
+                closure: scopes.clone(),
+            };
+            Ok(new_val_ref(f))
         },
 
         // _ => Err(format!("unhandled expression: {:?}", expr)),

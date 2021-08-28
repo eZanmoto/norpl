@@ -38,6 +38,7 @@ pub enum Expr {
 
     Object{props: Vec<PropItem>},
 
+    Func{args: Vec<String>, stmts: Vec<Stmt>},
     Call{func: String, args: Vec<Expr>},
 }
 

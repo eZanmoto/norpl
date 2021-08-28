@@ -77,6 +77,8 @@ pub Expr_: Expr = {
     "{" <props:PropList> "}" => Expr::Object{props},
 
     "(" <expr:Expr> ")" => expr,
+
+    "fn" "(" <args:ArgNames> ")" <stmts:Block> => Expr::Func{args, stmts},
 }
 
 pub ParamList: Vec<Expr> = {
