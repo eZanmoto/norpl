@@ -738,9 +738,16 @@ fn operate(op: &Op, lhs: &Value, rhs: &Value)
     match (lhs, rhs) {
         (Value::Int{n: lhs}, Value::Int{n: rhs}) => {
             match op {
+                Op::EQ => Ok(Value::Bool{b: lhs == rhs}),
+                Op::NE => Ok(Value::Bool{b: lhs != rhs}),
+                Op::GT => Ok(Value::Bool{b: lhs > rhs}),
                 Op::LT => Ok(Value::Bool{b: lhs < rhs}),
+
                 Op::Sum => Ok(Value::Int{n: lhs + rhs}),
+                Op::Sub => Ok(Value::Int{n: lhs - rhs}),
+                Op::Mul => Ok(Value::Int{n: lhs * rhs}),
                 Op::Div => Ok(Value::Int{n: lhs / rhs}),
+                Op::Mod => Ok(Value::Int{n: lhs % rhs}),
             }
         },
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),

@@ -15,7 +15,11 @@ pub Stmt: Stmt = {
 
     <lhs:Expr> ":=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
+
     <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Sum, rhs},
+    <name:Ident> "-=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Sub, rhs},
+    <name:Ident> "*=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Mul, rhs},
+    <name:Ident> "/=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: Op::Div, rhs},
 
     <stmt:IfStmt> => stmt,
     "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
@@ -48,6 +52,9 @@ pub IfStmt: Stmt = {
 }
 
 pub Expr: Expr = {
+    <lhs:Expr> "==" <rhs:Factor> => Expr::Op{op: Op::EQ, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Expr> "!=" <rhs:Factor> => Expr::Op{op: Op::NE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Expr> ">" <rhs:Factor> => Expr::Op{op: Op::GT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Expr> "<" <rhs:Factor> => Expr::Op{op: Op::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
     <start:Expr> ".." <end:Factor> =>
@@ -56,11 +63,20 @@ pub Expr: Expr = {
     <expr:Expr> "[" <location:Expr> "]" =>
         Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 
+    <expr:Term> => expr,
+}
+
+pub Term: Expr = {
+    <lhs:Term> "+" <rhs:Factor> => Expr::Op{op: Op::Sum, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Term> "-" <rhs:Factor> => Expr::Op{op: Op::Sub, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+
     <expr:Factor> => expr,
 }
 
 pub Factor: Expr = {
+    <lhs:Factor> "*" <rhs:Expr_> => Expr::Op{op: Op::Mul, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Factor> "/" <rhs:Expr_> => Expr::Op{op: Op::Div, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Factor> "%" <rhs:Expr_> => Expr::Op{op: Op::Mod, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
     <expr:Expr_> => expr,
 }

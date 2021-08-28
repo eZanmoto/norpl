@@ -57,9 +57,14 @@ pub enum PropItem {
 
 #[derive(Clone,Debug)]
 pub enum Op {
+    EQ,
+    NE,
+    GT,
     LT,
 
     Sum,
-
+    Sub,
+    Mul,
     Div,
+    Mod,
 }
