@@ -68,4 +68,7 @@ pub enum Op {
     Mul,
     Div,
     Mod,
+
+    And,
+    Or,
 }

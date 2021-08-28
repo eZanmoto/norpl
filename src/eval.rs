@@ -751,6 +751,18 @@ fn operate(op: &Op, lhs: &Value, rhs: &Value)
                 Op::Mul => Ok(Value::Int{n: lhs * rhs}),
                 Op::Div => Ok(Value::Int{n: lhs / rhs}),
                 Op::Mod => Ok(Value::Int{n: lhs % rhs}),
+
+                _ => Err(format!("unsupported operation for integers ({:?})", op))
+            }
+        },
+        (Value::Bool{b: lhs}, Value::Bool{b: rhs}) => {
+            match op {
+                Op::EQ => Ok(Value::Bool{b: lhs == rhs}),
+                Op::NE => Ok(Value::Bool{b: lhs != rhs}),
+                Op::And => Ok(Value::Bool{b: *lhs && *rhs}),
+                Op::Or => Ok(Value::Bool{b: *lhs || *rhs}),
+
+                _ => Err(format!("unsupported operation for booleans ({:?})", op))
             }
         },
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),

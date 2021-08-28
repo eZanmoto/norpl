@@ -57,6 +57,9 @@ pub Expr: Expr = {
     <lhs:Expr> ">" <rhs:Factor> => Expr::Op{op: Op::GT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Expr> "<" <rhs:Factor> => Expr::Op{op: Op::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
+    <lhs:Expr> "&&" <rhs:Factor> => Expr::Op{op: Op::And, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Expr> "||" <rhs:Factor> => Expr::Op{op: Op::Or, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+
     <start:Expr> ".." <end:Factor> =>
         Expr::Range{start: Box::new(start), end: Box::new(end)},
 
