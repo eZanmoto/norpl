@@ -1,7 +1,7 @@
-print(!true);
-print(!false);
-
-print(true == false);
-print(true != false);
-print(true && false);
-print(true || false);
+s1 := 'hello';
+s2 := s1 + ' world!';
+s2 += ' Thanks.';
+print(s1);
+print(s2);
+print(s1 == 'hello');
+print(s1 == 'world');

@@ -793,6 +793,14 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 _ => Err(format!("unsupported operation for booleans ({:?})", op))
             }
         },
+        (Value::Str{s: lhs}, Value::Str{s: rhs}) => {
+            match op {
+                BinaryOp::EQ => Ok(Value::Bool{b: lhs == rhs}),
+                BinaryOp::Sum => Ok(Value::Str{s: lhs.to_owned() + rhs}),
+
+                _ => Err(format!("unsupported operation for strings ({:?})", op))
+            }
+        },
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),
     }
 }
