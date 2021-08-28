@@ -801,6 +801,22 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 _ => Err(format!("unsupported operation for strings ({:?})", op))
             }
         },
+        (Value::List{xs: lhs}, Value::List{xs: rhs}) => {
+            match op {
+                BinaryOp::Sum => {
+                    let mut xs = vec![];
+                    for v in lhs {
+                        xs.push(v.clone());
+                    }
+                    for v in rhs {
+                        xs.push(v.clone());
+                    }
+                    Ok(Value::List{xs})
+                },
+
+                _ => Err(format!("unsupported operation for lists ({:?})", op))
+            }
+        },
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),
     }
 }
