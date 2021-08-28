@@ -31,6 +31,7 @@ fn main() {
     let mut global_frame: HashMap<String, ValRef> = HashMap::new();
     global_frame.insert("print".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: print_}));
     global_frame.insert("len".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: len_}));
+    global_frame.insert("type".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: type_}));
 
     let mut scopes = ScopeStack::new(vec![]);
     let ast = ProgParser::new().parse(&test).unwrap();
@@ -75,4 +76,23 @@ fn len_(vs: Vec<ValRef>) -> Result<ValRef, String> {
             Err(format!("can only call `len` on lists"))
         },
     }
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn type_(vs: Vec<ValRef>) -> Result<ValRef, String> {
+    // TODO Handle out-of-bounds access.
+    let t =
+        match &*vs[0].lock().unwrap() {
+            Value::Null => "null",
+            Value::Bool{..} => "bool",
+            Value::Int{..} => "int",
+            Value::Str{..} => "str",
+            Value::List{..} => "list",
+            Value::Object{..} => "object",
+            Value::BuiltInFunc{..} => "fn",
+            Value::Func{..} => "fn",
+        };
+
+    Ok(eval::new_val_ref(Value::Str{s: t.to_string()}))
 }
