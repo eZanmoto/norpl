@@ -313,6 +313,7 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
         },
 
         Expr::Range{..} => return Err(format!("cannot bind to a range")),
+        Expr::Null => return Err(format!("cannot bind to `null`")),
         Expr::Bool{..} => return Err(format!("cannot bind to a boolean literal")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
         Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
@@ -462,6 +463,8 @@ fn bind_object(
 
 fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
     match expr {
+        Expr::Null => Ok(new_val_ref(Value::Null)),
+
         Expr::Bool{b} => Ok(new_val_ref(Value::Bool{b: b.clone()})),
 
         Expr::Int{n} => Ok(new_val_ref(Value::Int{n: n.clone()})),

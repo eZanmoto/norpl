@@ -87,6 +87,7 @@ pub Factor: Expr = {
 }
 
 pub Expr_: Expr = {
+    "null" => Expr::Null,
     "true" => Expr::Bool{b: true},
     "false" => Expr::Bool{b: false},
 

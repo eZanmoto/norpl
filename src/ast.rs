@@ -25,6 +25,8 @@ pub enum Stmt {
 
 #[derive(Clone,Debug)]
 pub enum Expr {
+    Null,
+
     Bool{b: bool},
     Int{n: i64},
     Str{s: String},
