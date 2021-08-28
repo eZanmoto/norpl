@@ -11,7 +11,7 @@ pub enum Prog {
 pub enum Stmt {
     Declare{lhs: Expr, rhs: Expr},
     Assign{lhs: Expr, rhs: Expr},
-    OpAssign{name: String, op: Op, rhs: Expr},
+    OpAssign{name: String, op: BinaryOp, rhs: Expr},
 
     If{cond: Expr, if_stmts: Vec<Stmt>, else_stmts: Option<Vec<Stmt>>},
     While{cond: Expr, stmts: Vec<Stmt>},
@@ -31,7 +31,8 @@ pub enum Expr {
 
     Var{name: String},
 
-    Op{op: Op, lhs: Box<Expr>, rhs: Box<Expr>},
+    UnaryOp{op: UnaryOp, expr: Box<Expr>},
+    BinaryOp{op: BinaryOp, lhs: Box<Expr>, rhs: Box<Expr>},
 
     List{xs: Vec<ListItem>},
     Range{start: Box<Expr>, end: Box<Expr>},
@@ -57,7 +58,7 @@ pub enum PropItem {
 }
 
 #[derive(Clone,Debug)]
-pub enum Op {
+pub enum BinaryOp {
     EQ,
     NE,
     GT,
@@ -71,4 +72,9 @@ pub enum Op {
 
     And,
     Or,
+}
+
+#[derive(Clone,Debug)]
+pub enum UnaryOp {
+    Not,
 }

@@ -105,7 +105,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                 };
 
             let v_ =
-                match operate(&op, &lhs.lock().unwrap(), &rhs.lock().unwrap()) {
+                match apply_binary_operation(&op, &lhs.lock().unwrap(), &rhs.lock().unwrap()) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -316,7 +316,8 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
         Expr::Bool{..} => return Err(format!("cannot bind to a boolean literal")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
         Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
-        Expr::Op{..} => return Err(format!("cannot bind to an operation")),
+        Expr::UnaryOp{..} => return Err(format!("cannot bind to a unary operation")),
+        Expr::BinaryOp{..} => return Err(format!("cannot bind to a binary operation")),
         Expr::Func{..} => return Err(format!("cannot bind to a function literal")),
         Expr::Call{..} => return Err(format!("cannot bind to a function call")),
     }
@@ -626,7 +627,23 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
             Ok(new_val_ref(Value::Object{props: vals}))
         },
 
-        Expr::Op{op, lhs, rhs} => {
+        Expr::UnaryOp{op, expr} => {
+            let v =
+                match eval_expr(scopes, &*expr) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            let result =
+                match apply_unary_operation(op, &v.lock().unwrap()) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            Ok(new_val_ref(result))
+        },
+
+        Expr::BinaryOp{op, lhs, rhs} => {
             let exprs = vec![lhs, rhs];
 
             let mut vals = vec![];
@@ -639,7 +656,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
 
             let v =
                 if let [lhs, rhs] = vals.as_slice() {
-                    match operate(op, &lhs.lock().unwrap(), &rhs.lock().unwrap()) {
+                    match apply_binary_operation(op, &lhs.lock().unwrap(), &rhs.lock().unwrap()) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     }
@@ -735,32 +752,43 @@ pub fn eval_exprs(scopes: &mut ScopeStack, exprs: &Vec<Expr>)
     Ok(vals)
 }
 
-fn operate(op: &Op, lhs: &Value, rhs: &Value)
+fn apply_unary_operation(op: &UnaryOp, v: &Value) -> Result<Value,String> {
+    match v {
+        Value::Bool{b} => {
+            match op {
+                UnaryOp::Not => Ok(Value::Bool{b: !b}),
+            }
+        },
+        _ => Err(format!("invalid type: {:?}", v)),
+    }
+}
+
+fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
     -> Result<Value,String>
 {
     match (lhs, rhs) {
         (Value::Int{n: lhs}, Value::Int{n: rhs}) => {
             match op {
-                Op::EQ => Ok(Value::Bool{b: lhs == rhs}),
-                Op::NE => Ok(Value::Bool{b: lhs != rhs}),
-                Op::GT => Ok(Value::Bool{b: lhs > rhs}),
-                Op::LT => Ok(Value::Bool{b: lhs < rhs}),
+                BinaryOp::EQ => Ok(Value::Bool{b: lhs == rhs}),
+                BinaryOp::NE => Ok(Value::Bool{b: lhs != rhs}),
+                BinaryOp::GT => Ok(Value::Bool{b: lhs > rhs}),
+                BinaryOp::LT => Ok(Value::Bool{b: lhs < rhs}),
 
-                Op::Sum => Ok(Value::Int{n: lhs + rhs}),
-                Op::Sub => Ok(Value::Int{n: lhs - rhs}),
-                Op::Mul => Ok(Value::Int{n: lhs * rhs}),
-                Op::Div => Ok(Value::Int{n: lhs / rhs}),
-                Op::Mod => Ok(Value::Int{n: lhs % rhs}),
+                BinaryOp::Sum => Ok(Value::Int{n: lhs + rhs}),
+                BinaryOp::Sub => Ok(Value::Int{n: lhs - rhs}),
+                BinaryOp::Mul => Ok(Value::Int{n: lhs * rhs}),
+                BinaryOp::Div => Ok(Value::Int{n: lhs / rhs}),
+                BinaryOp::Mod => Ok(Value::Int{n: lhs % rhs}),
 
                 _ => Err(format!("unsupported operation for integers ({:?})", op))
             }
         },
         (Value::Bool{b: lhs}, Value::Bool{b: rhs}) => {
             match op {
-                Op::EQ => Ok(Value::Bool{b: lhs == rhs}),
-                Op::NE => Ok(Value::Bool{b: lhs != rhs}),
-                Op::And => Ok(Value::Bool{b: *lhs && *rhs}),
-                Op::Or => Ok(Value::Bool{b: *lhs || *rhs}),
+                BinaryOp::EQ => Ok(Value::Bool{b: lhs == rhs}),
+                BinaryOp::NE => Ok(Value::Bool{b: lhs != rhs}),
+                BinaryOp::And => Ok(Value::Bool{b: *lhs && *rhs}),
+                BinaryOp::Or => Ok(Value::Bool{b: *lhs || *rhs}),
 
                 _ => Err(format!("unsupported operation for booleans ({:?})", op))
             }
