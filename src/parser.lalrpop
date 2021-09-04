@@ -151,10 +151,11 @@ pub PropList: Vec<PropItem> = {
 pub PropItem: PropItem = {
     <name:StrLiteral> ":" <value:Expr> =>
         PropItem::Pair{name, value},
-    <expr:Expr> <spread:".."?> =>
+    <unspread:".."?> <expr:Expr> <spread:".."?> =>
         PropItem::Single{
             expr,
             is_spread: spread.is_some(),
+            is_unspread: unspread.is_some(),
         },
 }
 

@@ -1,9 +1,15 @@
-a := 1;
+x := {
+    'a': 1,
+    'b': 2,
+    'c': 3,
+    'd': 4,
+};
 
-x := { a, 'b': 2 };
+{
+    'a': v,
+    'b': _,
+    ..rest,
+} := x;
 
-{ b } := x;
-
-print(a);
-print(x);
-print(b);
+print(v);
+print(rest);

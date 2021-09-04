@@ -1,0 +1,9 @@
+a := 1;
+
+x := { a, 'b': 2 };
+
+{ b } := x;
+
+print(a);
+print(x);
+print(b);

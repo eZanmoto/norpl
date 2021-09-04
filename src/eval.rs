@@ -3,6 +3,7 @@
 // licence that can be found in the LICENCE file.
 
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -435,9 +436,12 @@ fn bind_object(
     // elements in the source object is equal to the number of elements in the
     // target object.
 
-    for prop_item in lhs {
+    let mut rhs_keys: HashSet<String> = rhs.keys().cloned().collect();
+
+    let lhs_len = lhs.len();
+    for (i, prop_item) in lhs.into_iter().enumerate() {
         match prop_item {
-            PropItem::Single{expr, is_spread} => {
+            PropItem::Single{expr, is_spread, is_unspread} => {
                 if is_spread {
                     return Err(format!("can't use spread operator in object destructuring"));
                 }
@@ -447,15 +451,40 @@ fn bind_object(
                         name.clone()
                     } else {
                         // TODO Improve the description of this error message.
-                        return Err(format!("can only use variable name on its own"));
+                        return Err(format!("can only use variable name for object property shorthand"));
                     };
 
-                let result = bind_object_pair(scopes, expr, &rhs, &name, bt);
-                if let Err(e) = result {
-                    return Err(format!("couldn't bind object pair '{}': {}", name, e));
+                if is_unspread {
+                    if i == lhs_len - 1 {
+                        let mut props: HashMap<String, ValRef> = HashMap::new();
+                        for k in &rhs_keys {
+                            if let Some(v) = rhs.get(k) {
+                                props.insert(k.to_string(), v.clone());
+                            } else {
+                                return Err(format!("object doesn't contain property '{}'", k));
+                            }
+                        }
+
+                        let lhs = Expr::Var{name: name.clone()};
+                        let new_rhs = new_val_ref(Value::Object{props});
+                        if let Err(e) = bind(scopes, lhs, new_rhs, bt) {
+                            return Err(format!("couldn't bind '{}': {}", name, e));
+                        }
+                    } else {
+                        return Err(format!("unspread can only appear on last item in object"));
+                    }
+                } else {
+                    rhs_keys.remove(&name);
+
+                    let result = bind_object_pair(scopes, expr, &rhs, &name, bt);
+                    if let Err(e) = result {
+                        return Err(format!("couldn't bind object pair '{}': {}", name, e));
+                    }
                 }
             },
             PropItem::Pair{name, value: new_lhs} => {
+                rhs_keys.remove(&name);
+
                 let result = bind_object_pair(scopes, new_lhs, &rhs, &name, bt);
                 if let Err(e) = result {
                     return Err(format!("couldn't bind object pair '{}': {}", name, e));
@@ -631,7 +660,11 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
 
                         vals.insert(name.clone(), v);
                     },
-                    PropItem::Single{expr, is_spread} => {
+                    PropItem::Single{expr, is_spread, is_unspread} => {
+                        if *is_unspread {
+                            return Err(format!("can't use unspread operator in objectliteral"));
+                        }
+
                         if *is_spread {
                             let v =
                                 match eval_expr(scopes, &expr) {
@@ -661,7 +694,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                                 vals.insert(name.to_string(), v);
                             } else {
                                 // TODO Improve the description of this error message.
-                                return Err(format!("can only use variable name with property shorthand"));
+                                return Err(format!("can only use variable name for object property shorthand"));
                             }
                         }
                     },
