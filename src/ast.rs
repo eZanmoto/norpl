@@ -55,7 +55,7 @@ pub struct ListItem {
 
 #[derive(Clone,Debug)]
 pub enum PropItem {
-    Pair{name: String, value: Expr, name_is_str: bool},
+    Pair{name: String, value: Expr},
     Spread{expr: Expr},
 }
 

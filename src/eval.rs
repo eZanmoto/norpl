@@ -440,11 +440,7 @@ fn bind_object(
             PropItem::Spread{..} => {
                 return Err(format!("can't use spread operator in object assigment"));
             },
-            PropItem::Pair{name, value: new_lhs, name_is_str} => {
-                if name_is_str {
-                    return Err(format!("keys in object destructuring can't be strings (must identifier shorthand)"));
-                }
-
+            PropItem::Pair{name, value: new_lhs} => {
                 let new_rhs =
                     match rhs.get(&name) {
                         Some(v) => v.clone(),
@@ -592,11 +588,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
 
             for prop in props {
                 match prop {
-                    PropItem::Pair{name, value, name_is_str} => {
-                        if !name_is_str {
-                            return Err(format!("keys in object literals must be strings (can't use identifier shorthand)"));
-                        }
-
+                    PropItem::Pair{name, value} => {
                         let v =
                             match eval_expr(scopes, &value) {
                                 Ok(v) => v,
