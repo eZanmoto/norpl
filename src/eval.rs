@@ -437,21 +437,55 @@ fn bind_object(
 
     for prop_item in lhs {
         match prop_item {
-            PropItem::Spread{..} => {
-                return Err(format!("can't use spread operator in object assigment"));
-            },
-            PropItem::Pair{name, value: new_lhs} => {
-                let new_rhs =
-                    match rhs.get(&name) {
-                        Some(v) => v.clone(),
-                        None => return Err(format!("property '{}' not found in source object", name)),
+            PropItem::Single{expr, is_spread} => {
+                if is_spread {
+                    return Err(format!("can't use spread operator in object destructuring"));
+                }
+
+                let name =
+                    if let Expr::Var{name} = &expr {
+                        name.clone()
+                    } else {
+                        // TODO Improve the description of this error message.
+                        return Err(format!("can only use variable name on its own"));
                     };
 
-                if let Err(e) = bind(scopes, new_lhs, new_rhs, bt) {
-                    return Err(format!("couldn't bind '{}': {}", name, e));
+                let result = bind_object_pair(scopes, expr, &rhs, &name, bt);
+                if let Err(e) = result {
+                    return Err(format!("couldn't bind object pair '{}': {}", name, e));
+                }
+            },
+            PropItem::Pair{name, value: new_lhs} => {
+                let result = bind_object_pair(scopes, new_lhs, &rhs, &name, bt);
+                if let Err(e) = result {
+                    return Err(format!("couldn't bind object pair '{}': {}", name, e));
                 }
             },
         }
+    }
+
+    Ok(())
+}
+
+// TODO This function is used to simplify `bind_object`, but its signature
+// isn't very clear at present, and should be clarified when possible.
+fn bind_object_pair(
+    scopes: &mut ScopeStack,
+    lhs: Expr,
+    rhs: &HashMap<String,ValRef>,
+    item_name: &String,
+    bt: BindType,
+)
+    -> Result<(),String>
+{
+    let new_rhs =
+        match rhs.get(item_name) {
+            Some(v) => v.clone(),
+            None => return Err(format!("property '{}' not found in source object", item_name)),
+        };
+
+    if let Err(e) = bind(scopes, lhs, new_rhs, bt) {
+        return Err(format!("couldn't bind '{}': {}", item_name, e));
     }
 
     Ok(())
@@ -597,24 +631,39 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
 
                         vals.insert(name.clone(), v);
                     },
-                    PropItem::Spread{expr} => {
-                        let v =
-                            match eval_expr(scopes, &expr) {
-                                Ok(v) => v,
-                                Err(e) => return Err(e),
+                    PropItem::Single{expr, is_spread} => {
+                        if *is_spread {
+                            let v =
+                                match eval_expr(scopes, &expr) {
+                                    Ok(v) => v,
+                                    Err(e) => return Err(e),
+                                };
+
+                            match &*v.lock().unwrap() {
+                                Value::Object{props} => {
+                                    for (name, value) in props.iter() {
+                                        vals.insert(name.to_string(), value.clone());
+                                    }
+                                },
+
+                                _ => {
+                                    return Err(format!("can only spread objects in objects"));
+                                },
                             };
+                        } else {
+                            if let Expr::Var{name} = expr {
+                                let v =
+                                    match scopes.get(name) {
+                                        Some(v) => v.clone(),
+                                        None => return Err(format!("'{}' isn't defined", name)),
+                                    };
 
-                        match &*v.lock().unwrap() {
-                            Value::Object{props} => {
-                                for (name, value) in props.iter() {
-                                    vals.insert(name.to_string(), value.clone());
-                                }
-                            },
-
-                            _ => {
-                                return Err(format!("can only spread objects in objects"));
-                            },
-                        };
+                                vals.insert(name.to_string(), v);
+                            } else {
+                                // TODO Improve the description of this error message.
+                                return Err(format!("can only use variable name with property shorthand"));
+                            }
+                        }
                     },
                 }
             }

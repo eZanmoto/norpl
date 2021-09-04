@@ -1,44 +1,9 @@
-fn json_stringify(v) {
-    t := type(v);
+a := 1;
 
-    if t == 'null' {
-        return 'null';
-    }
-    if t == 'bool' {
-        if v {
-            return 'true';
-        }
-        return 'false';
-    }
-    if t == 'int' {
-        return '6';
-    }
-    if t == 'str' {
-        return '"' + v + '"';
-    }
-    if t == 'list' {
-        i := 0;
-        s := '[';
-        for item in v {
-            if i != 0 {
-                s += ',';
-            }
-            s += json_stringify(item);
-            i += 1;
-        }
-        s += ']';
-        return s;
-    }
+x := { a, 'b': 2 };
 
-    return null;
-}
+{ b } := x;
 
-json := json_stringify([
-    'abc',
-    ['Jane', 'Doe'],
-    6,
-    true,
-    null,
-]);
-
-print(json);
+print(a);
+print(x);
+print(b);
