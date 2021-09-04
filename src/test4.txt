@@ -1,0 +1,16 @@
+fn half(n) {
+    return n / 2;
+}
+
+fn map(f, xs) {
+    for i in 0..len(xs) {
+        xs[i] = f(xs[i]);
+    }
+    return xs;
+}
+
+print(map(half, [4, 5, 6]));
+
+# Output:
+#
+# [2, 2, 3]

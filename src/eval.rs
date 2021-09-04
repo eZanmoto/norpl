@@ -688,15 +688,35 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
             let v =
                 match &*func_.lock().unwrap() {
                     Value::BuiltInFunc{f} => {
-                        match f(vals) {
-                            Ok(v) => v,
-                            Err(e) => return Err(e),
-                        }
+                        Either::Left{value: (
+                            f.clone(),
+                            vals,
+                        )}
                     },
                     Value::Func{args: arg_names, stmts, closure} => {
                         let inner_scope: HashMap<String, ValRef> =
                             arg_names.clone().into_iter().zip(vals).collect();
 
+                        Either::Right{value:(
+                            inner_scope,
+                            closure.clone(),
+                            stmts.clone(),
+                        )}
+                    },
+                    _ => {
+                        return Err(format!("'{}' isn't a function", func));
+                    },
+                };
+
+            let v =
+                match v {
+                    Either::Left{value: (f, vals)} => {
+                        match f(vals) {
+                            Ok(v) => v,
+                            Err(e) => return Err(e),
+                        }
+                    },
+                    Either::Right{value: (inner_scope, closure, stmts)} => {
                         let r = eval_stmts(&mut closure.clone(), inner_scope, &stmts);
 
                         match r {
@@ -710,9 +730,6 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                                 return Err(e);
                             },
                         }
-                    },
-                    _ => {
-                        return Err(format!("'{}' isn't a function", func));
                     },
                 };
 
@@ -818,6 +835,11 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
 
 pub fn new_val_ref(v: Value) -> Arc<Mutex<Value>> {
     return Arc::new(Mutex::new(v));
+}
+
+enum Either<A,B> {
+    Left{value: A},
+    Right{value: B},
 }
 
 pub type ValRef = Arc<Mutex<Value>>;
