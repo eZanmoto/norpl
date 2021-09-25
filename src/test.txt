@@ -1,15 +1,8 @@
-let x = {
-    'a': 1,
-    'b': 2,
-    'c': 3,
-    'd': 4,
-};
+for pair in ['a', 'b', 'c'] {
+    print(pair);
+}
 
-let {
-    'a': v,
-    'b': _,
-    ..rest,
-} = x;
-
-print(v);
-print(rest);
+# for [i, v] in ['a', 'b', 'c'] {
+#     print(i);
+#     print(v);
+# }

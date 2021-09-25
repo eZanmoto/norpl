@@ -175,12 +175,17 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
 
             match &mut *iter_.lock().unwrap() {
                 Value::List{xs} => {
+                    let mut i = 0;
                     while xs.len() > 0 {
                         // TODO `lhs.clone()` is being used here because
                         // `bind_unspread_list` is destructive; this can be updated to
                         // a reference if this function is updated to be
                         // non-destructive.
-                        let r = bind(scopes, lhs.clone(), xs.remove(0), BindType::Declaration);
+                        let entry = new_val_ref(Value::List{xs: vec![
+                            new_val_ref(Value::Int{n: i}),
+                            xs.remove(0),
+                        ]});
+                        let r = bind(scopes, lhs.clone(), entry, BindType::Declaration);
                         if let Err(e) = r {
                             return Err(e);
                         }
@@ -188,6 +193,8 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                         if let Err(e) = eval_stmts_in_new_scope(scopes, &stmts) {
                             return Err(e);
                         }
+
+                        i += 1;
                     }
                 },
                 _ => {
