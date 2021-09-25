@@ -13,7 +13,7 @@ pub Prog: Prog = {
 pub Stmt: Stmt = {
     <expr:Expr> ";" => Stmt::Expr{expr},
 
-    <lhs:Expr> ":=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs},
+    "let" <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
 
     <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: BinaryOp::Sum, rhs},
