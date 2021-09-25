@@ -9,11 +9,15 @@ use std::sync::Mutex;
 
 use ast::*;
 
-pub fn eval_prog(scopes: &mut ScopeStack, global_scope: Scope, Prog::Body{stmts}: &Prog)
+pub fn eval_prog(
+    scopes: &mut ScopeStack,
+    global_bindings: Vec<(Expr, ValRef)>,
+    Prog::Body{stmts}: &Prog,
+)
     -> Result<(),String>
 {
     let ret_val =
-        match eval_stmts(scopes, global_scope, stmts) {
+        match eval_stmts(scopes, global_bindings, stmts) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -33,15 +37,28 @@ pub fn eval_stmts_in_new_scope(
 )
     -> Result<Option<ValRef>,String>
 {
-    eval_stmts(outer_scopes, HashMap::<String, ValRef>::new(), stmts)
+    eval_stmts(outer_scopes, vec![], stmts)
 }
 
-// `eval_stmts` returns `Some(v)` if one of the statements is evaluates is a a
-// `return` statement, otherwise it returns `None`.
-pub fn eval_stmts(scopes: &mut ScopeStack, inner_scope: Scope, stmts: &Vec<Stmt>)
+// `eval_stmts` evaluates `stmts` in a new scope pushed onto `scopes`, with the
+// given `new_bindings` declared in the new scope. It returns `Some(v)` if one
+// of the statements is evaluates is a a `return` statement, otherwise it
+// returns `None`.
+pub fn eval_stmts(
+    scopes: &mut ScopeStack,
+    new_bindings: Vec<(Expr, ValRef)>,
+    stmts: &Vec<Stmt>,
+)
     -> Result<Option<ValRef>,String>
 {
-    let mut inner_scopes = scopes.new_from_push(inner_scope);
+    let mut inner_scopes = scopes.new_from_push(HashMap::new());
+
+    for (lhs, rhs) in new_bindings {
+        let r = bind(&mut inner_scopes, lhs.clone(), rhs, BindType::Declaration);
+        if let Err(e) = r {
+            return Err(e);
+        }
+    }
 
     for stmt in stmts {
         match eval_stmt(&mut inner_scopes, &stmt) {
@@ -185,12 +202,11 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                             new_val_ref(Value::Int{n: i}),
                             xs.remove(0),
                         ]});
-                        let r = bind(scopes, lhs.clone(), entry, BindType::Declaration);
-                        if let Err(e) = r {
-                            return Err(e);
-                        }
 
-                        if let Err(e) = eval_stmts_in_new_scope(scopes, &stmts) {
+                        let new_bindings = vec![(lhs.clone(), entry)];
+
+                        let r = eval_stmts(scopes, new_bindings, &stmts);
+                        if let Err(e) = r {
                             return Err(e);
                         }
 
@@ -783,11 +799,16 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                         )}
                     },
                     Value::Func{args: arg_names, stmts, closure} => {
-                        let inner_scope: HashMap<String, ValRef> =
-                            arg_names.clone().into_iter().zip(vals).collect();
+                        let new_bindings =
+                            arg_names
+                                .clone()
+                                .into_iter()
+                                .map(|name| Expr::Var{name})
+                                .zip(vals)
+                                .collect();
 
                         Either::Right{value:(
-                            inner_scope,
+                            new_bindings,
                             closure.clone(),
                             stmts.clone(),
                         )}
@@ -805,8 +826,8 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                             Err(e) => return Err(e),
                         }
                     },
-                    Either::Right{value: (inner_scope, closure, stmts)} => {
-                        let r = eval_stmts(&mut closure.clone(), inner_scope, &stmts);
+                    Either::Right{value: (new_bindings, closure, stmts)} => {
+                        let r = eval_stmts(&mut closure.clone(), new_bindings, &stmts);
 
                         match r {
                             Ok(ret_val) => {

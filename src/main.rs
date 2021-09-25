@@ -10,6 +10,7 @@ use std::io::BufReader;
 mod ast;
 mod eval;
 
+use ast::Expr;
 use eval::ScopeStack;
 use eval::ValRef;
 use eval::Value;
@@ -28,14 +29,15 @@ lalrpop_mod!(
 fn main() {
     let test = read_test();
 
-    let mut global_frame: HashMap<String, ValRef> = HashMap::new();
-    global_frame.insert("print".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: print_}));
-    global_frame.insert("len".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: len_}));
-    global_frame.insert("type".to_string(), eval::new_val_ref(Value::BuiltInFunc{f: type_}));
+    let mut global_bindings = vec![
+        (Expr::Var{name: "print".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: print_})),
+        (Expr::Var{name: "len".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: len_})),
+        (Expr::Var{name: "type".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: type_})),
+    ];
 
     let mut scopes = ScopeStack::new(vec![]);
     let ast = ProgParser::new().parse(&test).unwrap();
-    let result = eval::eval_prog(&mut scopes, global_frame, &ast);
+    let result = eval::eval_prog(&mut scopes, global_bindings, &ast);
 
     println!("{:?}", result);
 }

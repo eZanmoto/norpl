@@ -1,8 +1,4 @@
 for pair in ['a', 'b', 'c'] {
     print(pair);
 }
-
-# for [i, v] in ['a', 'b', 'c'] {
-#     print(i);
-#     print(v);
-# }
+print(pair);
