@@ -1,3 +1,12 @@
+fn f([a, b]) {
+    print(a);
+    print('-');
+    print(b);
+}
+
+let x = [1, 2];
+f(x);
+
 for pair in ['a', 'b', 'c'] {
     print(pair);
 }

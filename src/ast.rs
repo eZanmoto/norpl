@@ -17,7 +17,7 @@ pub enum Stmt {
     While{cond: Expr, stmts: Vec<Stmt>},
     For{lhs: Expr, iter: Expr, stmts: Vec<Stmt>},
 
-    Func{name: String, args: Vec<String>, stmts: Vec<Stmt>},
+    Func{name: String, args: Vec<Expr>, stmts: Vec<Stmt>},
     Return{expr: Expr},
 
     Expr{expr: Expr},
@@ -42,7 +42,7 @@ pub enum Expr {
 
     Object{props: Vec<PropItem>},
 
-    Func{args: Vec<String>, stmts: Vec<Stmt>},
+    Func{args: Vec<Expr>, stmts: Vec<Stmt>},
     Call{func: String, args: Vec<Expr>},
 }
 

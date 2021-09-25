@@ -803,7 +803,6 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                             arg_names
                                 .clone()
                                 .into_iter()
-                                .map(|name| Expr::Var{name})
                                 .zip(vals)
                                 .collect();
 
@@ -965,7 +964,7 @@ pub enum Value {
     Object{props: HashMap<String,ValRef>},
 
     BuiltInFunc{f: fn(Vec<ValRef>) -> Result<ValRef, String>},
-    Func{args: Vec<String>, stmts: Vec<Stmt>, closure: ScopeStack},
+    Func{args: Vec<Expr>, stmts: Vec<Stmt>, closure: ScopeStack},
 }
 
 #[derive(Clone,Debug)]

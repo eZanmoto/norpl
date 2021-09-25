@@ -25,7 +25,7 @@ pub Stmt: Stmt = {
     "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
     "for" <lhs:Expr> "in" <iter:Expr> <stmts:Block> => Stmt::For{lhs, iter, stmts},
 
-    "fn" <name:Ident> "(" <args:ArgNames> ")" <stmts:Block> => Stmt::Func{name, args, stmts},
+    "fn" <name:Ident> "(" <args:ParamList> ")" <stmts:Block> => Stmt::Func{name, args, stmts},
     "return" <expr:Expr> ";" => Stmt::Return{expr},
 }
 
@@ -103,7 +103,7 @@ pub Expr_: Expr = {
 
     "(" <expr:Expr> ")" => expr,
 
-    "fn" "(" <args:ArgNames> ")" <stmts:Block> => Expr::Func{args, stmts},
+    "fn" "(" <args:ParamList> ")" <stmts:Block> => Expr::Func{args, stmts},
 }
 
 pub ParamList: Vec<Expr> = {
