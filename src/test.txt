@@ -1,13 +1,4 @@
-fn f([a, b]) {
-    print(a);
-    print('-');
-    print(b);
-}
-
-let x = [1, 2];
-f(x);
-
-for pair in ['a', 'b', 'c'] {
-    print(pair);
-}
-print(pair);
+const x = 1;
+let y = 1;
+y = 2;
+x = 2;

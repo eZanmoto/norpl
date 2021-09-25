@@ -54,7 +54,7 @@ pub fn eval_stmts(
     let mut inner_scopes = scopes.new_from_push(HashMap::new());
 
     for (lhs, rhs) in new_bindings {
-        let r = bind(&mut inner_scopes, lhs.clone(), rhs, BindType::Declaration);
+        let r = bind(&mut inner_scopes, lhs.clone(), rhs, BindType::VarDeclaration);
         if let Err(e) = r {
             return Err(e);
         }
@@ -83,15 +83,21 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
             }
         },
 
-        Stmt::Declare{lhs, rhs} => {
+        Stmt::Declare{lhs, rhs, dt} => {
             let v =
                 match eval_expr(scopes, &rhs) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
+            let bt =
+                match dt {
+                    DeclarationType::Const => BindType::ConstDeclaration,
+                    DeclarationType::Var => BindType::VarDeclaration,
+                };
+
             // TODO Consider whether `clone()` can be avoided here.
-            if let Err(e) = bind(scopes, lhs.clone(), v, BindType::Declaration) {
+            if let Err(e) = bind(scopes, lhs.clone(), v, bt) {
                 return Err(e);
             }
         },
@@ -230,7 +236,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                 scopes,
                 name.clone(),
                 new_val_ref(func),
-                BindType::Declaration,
+                BindType::VarDeclaration,
             );
             if let Err(e) = r {
                 return Err(e);
@@ -351,7 +357,8 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
 #[derive(Clone,Copy)]
 enum BindType {
     Assignment,
-    Declaration,
+    ConstDeclaration,
+    VarDeclaration,
 }
 
 fn bind_name(scopes: &mut ScopeStack, name: String, rhs: ValRef, bind_type: BindType)
@@ -363,12 +370,15 @@ fn bind_name(scopes: &mut ScopeStack, name: String, rhs: ValRef, bind_type: Bind
 
     match bind_type {
         BindType::Assignment => {
-            if !scopes.assign(name.clone(), rhs) {
-                return Err(format!("'{}' isn't defined", name));
+            if let Err(e) = scopes.assign(name.clone(), rhs) {
+                return Err(e);
             }
         },
-        BindType::Declaration => {
-            scopes.declare(name, rhs)
+        BindType::ConstDeclaration => {
+            scopes.declare(name, rhs, DeclType::Const);
+        },
+        BindType::VarDeclaration => {
+            scopes.declare(name, rhs, DeclType::Var);
         },
     }
 
@@ -970,7 +980,13 @@ pub enum Value {
 #[derive(Clone,Debug)]
 pub struct ScopeStack(Vec<Arc<Mutex<Scope>>>);
 
-pub type Scope = HashMap<String, ValRef>;
+pub type Scope = HashMap<String, (ValRef, DeclType)>;
+
+#[derive(Debug,PartialEq)]
+pub enum DeclType {
+    Const,
+    Var,
+}
 
 impl ScopeStack {
     pub fn new(scopes: Vec<Arc<Mutex<Scope>>>) -> ScopeStack {
@@ -984,33 +1000,37 @@ impl ScopeStack {
         ScopeStack::new(scopes)
     }
 
-    fn declare(&mut self, name: String, v: ValRef) {
+    fn declare(&mut self, name: String, v: ValRef, decl_type: DeclType) {
         self.0.last()
             .expect("`ScopeStack` stack shouldn't be empty")
             .lock()
             .unwrap()
-            .insert(name, v);
+            .insert(name, (v, decl_type));
     }
 
     // `assign` replaces `name` in the topmost scope of this `ScopeStack` and
     // returns `true`, or else it returns `false` if `name` wasn't found in
-    // this `ScopeStack`.
-    fn assign(&mut self, name: String, v: ValRef) -> bool {
+    // this `ScopeStack`. `assign` returns an error if attempting to assign to
+    // a constant binding.
+    fn assign(&mut self, name: String, v: ValRef) -> Result<(),String> {
         for scope in self.0.iter().rev() {
             let mut unlocked_scope = scope.lock().unwrap();
-            if unlocked_scope.contains_key(&name) {
-                unlocked_scope.insert(name, v);
-                return true;
+            if let Some((_, (_, decl_type))) = unlocked_scope.get_key_value(&name) {
+                if *decl_type == DeclType::Const {
+                    return Err(format!("cannot assign to constant binding"));
+                }
+                unlocked_scope.insert(name, (v, DeclType::Var));
+                return Ok(());
             }
         }
 
-        false
+        Err(format!("'{}' isn't defined", name))
     }
 
     fn get(&self, name: &String) -> Option<ValRef> {
         for scope in self.0.iter().rev() {
             let unlocked_scope = scope.lock().unwrap();
-            if let Some(v) = unlocked_scope.get(name) {
+            if let Some((v, _)) = unlocked_scope.get(name) {
                 // TODO Remove `clone()`.
                 return Some(v.clone());
             }

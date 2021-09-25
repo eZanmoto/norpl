@@ -9,7 +9,7 @@ pub enum Prog {
 
 #[derive(Clone,Debug)]
 pub enum Stmt {
-    Declare{lhs: Expr, rhs: Expr},
+    Declare{lhs: Expr, rhs: Expr, dt: DeclarationType},
     Assign{lhs: Expr, rhs: Expr},
     OpAssign{name: String, op: BinaryOp, rhs: Expr},
 
@@ -21,6 +21,12 @@ pub enum Stmt {
     Return{expr: Expr},
 
     Expr{expr: Expr},
+}
+
+#[derive(Clone,Debug)]
+pub enum DeclarationType {
+    Const,
+    Var,
 }
 
 #[derive(Clone,Debug)]
