@@ -787,44 +787,41 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
             Ok(v)
         },
 
-        Expr::Call{func, args} => {
+        Expr::Call{expr, args} => {
             let vals =
                 match eval_exprs(scopes, &args) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
-            let func_ =
-                match scopes.get(func) {
-                    Some(v) => v,
-                    None => return Err(format!("'{}' isn't defined", &func)),
-                };
-
             let v =
-                match &*func_.lock().unwrap() {
-                    Value::BuiltInFunc{f} => {
-                        Either::Left{value: (
-                            f.clone(),
-                            vals,
-                        )}
-                    },
-                    Value::Func{args: arg_names, stmts, closure} => {
-                        let new_bindings =
-                            arg_names
-                                .clone()
-                                .into_iter()
-                                .zip(vals)
-                                .collect();
+                match eval_expr(scopes, &expr) {
+                    Ok(value) => {
+                        match &mut *value.lock().unwrap() {
+                            Value::BuiltInFunc{f} => {
+                                Either::Left{value: (
+                                    f.clone(),
+                                    vals,
+                                )}
+                            },
+                            Value::Func{args: arg_names, stmts, closure} => {
+                                let new_bindings =
+                                    arg_names
+                                        .clone()
+                                        .into_iter()
+                                        .zip(vals)
+                                        .collect();
 
-                        Either::Right{value:(
-                            new_bindings,
-                            closure.clone(),
-                            stmts.clone(),
-                        )}
+                                Either::Right{value:(
+                                    new_bindings,
+                                    closure.clone(),
+                                    stmts.clone(),
+                                )}
+                            },
+                            _ => return Err(format!("can only call functions")),
+                        }
                     },
-                    _ => {
-                        return Err(format!("'{}' isn't a function", func));
-                    },
+                    Err(e) => return Err(e),
                 };
 
             let v =

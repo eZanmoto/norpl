@@ -64,6 +64,9 @@ pub Expr: Expr = {
     <start:Expr> ".." <end:Factor> =>
         Expr::Range{start: Box::new(start), end: Box::new(end)},
 
+    <expr:Expr> "(" <args:ParamList> ")" =>
+        Expr::Call{expr: Box::new(expr), args: args},
+
     <expr:Expr> "[" <location:Expr> "]" =>
         Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 
@@ -95,8 +98,6 @@ pub Expr_: Expr = {
     <name:Ident> => Expr::Var{name},
     <n:IntLiteral> => Expr::Int{n},
     <s:StrLiteral> => Expr::Str{s},
-
-    <func:Ident> "(" <args:ParamList> ")" => Expr::Call{func, args: args},
 
     "[" <xs:ExprList> "]" => Expr::List{xs},
 

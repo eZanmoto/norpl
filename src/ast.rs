@@ -49,7 +49,7 @@ pub enum Expr {
     Object{props: Vec<PropItem>},
 
     Func{args: Vec<Expr>, stmts: Vec<Stmt>},
-    Call{func: String, args: Vec<Expr>},
+    Call{expr: Box<Expr>, args: Vec<Expr>},
 }
 
 #[derive(Clone,Debug)]

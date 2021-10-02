@@ -1,4 +1,18 @@
-const x = 1;
-let y = 1;
-y = 2;
-x = 2;
+fn new_set() {
+    let set = {};
+    return {
+        'set': fn (k) {
+            set[k] = true;
+        },
+        'has': fn (k) {
+            return set[k];
+        },
+    };
+}
+
+let xs = new_set();
+
+xs['set']('a');
+xs['set']('b');
+print(xs['has']('a'));
+print(xs['has']('c'));
