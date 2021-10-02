@@ -1,24 +1,24 @@
 fn new_set() {
+    let set = {};
     return {
-        'values': {},
         'set': fn (k) {
-            this[k] = true;
+            set[k] = true;
         },
         'has': fn (k) {
-            return this[k];
+            return set[k];
         },
     };
 }
 
 let xs = new_set();
 
-xs.set('a');
-xs.set('b');
-print(xs.has('a'));
-
 xs['set']('a');
 xs['set']('b');
 print(xs['has']('a'));
+
+xs.set('a');
+xs.set('b');
+print(xs.has('a'));
 
 xs = {};
 
@@ -26,5 +26,3 @@ xs.abc = 1;
 xs.abc = 1 + xs.abc;
 xs.abc = xs.abc + 1;
 print(xs.abc);
-
-print(xs.this);

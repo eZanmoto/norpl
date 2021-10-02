@@ -11,7 +11,7 @@ mod eval;
 
 use ast::Expr;
 use eval::ScopeStack;
-use eval::ValRef;
+use eval::ValRefWithSource;
 use eval::Value;
 use parser::ProgParser;
 
@@ -55,18 +55,18 @@ fn read_test() -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn print_(vs: Vec<ValRef>) -> Result<ValRef, String> {
+fn print_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Remove varargs support.
-    println!("{:?}", vs);
+    println!("{:?}", vs[0].v);
 
     Ok(eval::new_val_ref(Value::Null))
 }
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn len_(vs: Vec<ValRef>) -> Result<ValRef, String> {
+fn len_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
-    match &*vs[0].lock().unwrap() {
+    match &*vs[0].v.lock().unwrap() {
         Value::List{xs} => {
             // TODO Investigate casting `usize` to `i64`.
             let n = Value::Int{n: xs.len() as i64};
@@ -81,10 +81,10 @@ fn len_(vs: Vec<ValRef>) -> Result<ValRef, String> {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn type_(vs: Vec<ValRef>) -> Result<ValRef, String> {
+fn type_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     let t =
-        match &*vs[0].lock().unwrap() {
+        match &*vs[0].v.lock().unwrap() {
             Value::Null => "null",
             Value::Bool{..} => "bool",
             Value::Int{..} => "int",
