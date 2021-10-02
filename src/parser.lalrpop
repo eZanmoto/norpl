@@ -70,6 +70,9 @@ pub Expr: Expr = {
     <expr:Expr> "[" <location:Expr> "]" =>
         Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 
+    <expr:Expr> "." <name:Ident> =>
+        Expr::Prop{expr: Box::new(expr), name},
+
     <expr:Term> => expr,
 }
 

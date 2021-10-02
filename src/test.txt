@@ -15,4 +15,14 @@ let xs = new_set();
 xs['set']('a');
 xs['set']('b');
 print(xs['has']('a'));
-print(xs['has']('c'));
+
+xs.set('a');
+xs.set('b');
+print(xs.has('a'));
+
+xs = {};
+
+xs.abc = 1;
+xs.abc = 1 + (xs.abc);
+xs.abc = (xs.abc) + 1;
+print(xs.abc);

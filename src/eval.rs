@@ -331,6 +331,20 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRef, bt: BindType)
             Ok(())
         },
 
+        Expr::Prop{expr, name} => {
+            match eval_expr(scopes, &expr) {
+                Ok(value) => {
+                    match &mut *value.lock().unwrap() {
+                        Value::Object{props} => props.insert(name, rhs),
+                        _ => return Err(format!("can only assign to properties of objects")),
+                    }
+                },
+                Err(e) => return Err(e),
+            };
+
+            Ok(())
+        },
+
         Expr::Object{props: lhs_props} => {
             match &*rhs.lock().unwrap() {
                 Value::Object{props: rhs_props} => {
@@ -671,6 +685,26 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRef,String> {
                         },
 
                         _ => return Err(format!("can only index lists and objects")),
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                },
+            };
+        },
+
+        Expr::Prop{expr, name} => {
+            match eval_expr(scopes, expr) {
+                Ok(v) => {
+                    match &*v.lock().unwrap() {
+                        Value::Object{props} => {
+                            match props.get(name) {
+                                Some(v) => return Ok(v.clone()),
+                                None => return Err(format!("property name not found")),
+                            };
+                        },
+
+                        _ => return Err(format!("can only access properties of objects")),
                     }
                 },
                 Err(e) => {
