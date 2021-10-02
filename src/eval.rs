@@ -219,8 +219,25 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                         i += 1;
                     }
                 },
+
+                Value::Object{props} => {
+                    for (key, value) in props {
+                        let entry = new_val_ref(Value::List{xs: vec![
+                            new_val_ref(Value::Str{s: key.to_string()}),
+                            value.clone(),
+                        ]});
+
+                        let new_bindings = vec![(lhs.clone(), entry)];
+
+                        let r = eval_stmts(scopes, new_bindings, &stmts);
+                        if let Err(e) = r {
+                            return Err(e);
+                        }
+                    }
+                },
+
                 _ => {
-                    return Err(format!("iterator must be a `list`"));
+                    return Err(format!("iterator must be a list or object"));
                 },
             };
         },
