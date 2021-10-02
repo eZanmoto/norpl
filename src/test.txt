@@ -23,6 +23,6 @@ print(xs.has('a'));
 xs = {};
 
 xs.abc = 1;
-xs.abc = 1 + (xs.abc);
-xs.abc = (xs.abc) + 1;
+xs.abc = 1 + xs.abc;
+xs.abc = xs.abc + 1;
 print(xs.abc);

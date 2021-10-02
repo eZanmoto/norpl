@@ -64,15 +64,6 @@ pub Expr: Expr = {
     <start:Expr> ".." <end:Factor> =>
         Expr::Range{start: Box::new(start), end: Box::new(end)},
 
-    <expr:Expr> "(" <args:ParamList> ")" =>
-        Expr::Call{expr: Box::new(expr), args: args},
-
-    <expr:Expr> "[" <location:Expr> "]" =>
-        Expr::Index{expr: Box::new(expr), location: Box::new(location)},
-
-    <expr:Expr> "." <name:Ident> =>
-        Expr::Prop{expr: Box::new(expr), name},
-
     <expr:Term> => expr,
 }
 
@@ -89,6 +80,19 @@ pub Factor: Expr = {
     <lhs:Factor> "*" <rhs:Expr_> => Expr::BinaryOp{op: BinaryOp::Mul, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Factor> "/" <rhs:Expr_> => Expr::BinaryOp{op: BinaryOp::Div, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Factor> "%" <rhs:Expr_> => Expr::BinaryOp{op: BinaryOp::Mod, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+
+    <expr:Application> => expr,
+}
+
+pub Application: Expr = {
+    <expr:Application> "(" <args:ParamList> ")" =>
+        Expr::Call{expr: Box::new(expr), args: args},
+
+    <expr:Application> "[" <location:Expr> "]" =>
+        Expr::Index{expr: Box::new(expr), location: Box::new(location)},
+
+    <expr:Application> "." <name:Ident> =>
+        Expr::Prop{expr: Box::new(expr), name},
 
     <expr:Expr_> => expr,
 }
