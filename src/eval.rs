@@ -276,24 +276,31 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
     Ok(None)
 }
 
-// TODO `bind` doesn't check for uniqueness among variable names for now,
-// meaning that multiple instances of the same variable may be overwritten in
-// the same operation. For example, `[x, x] = [1, 2]` will result in `x` having
-// the value 2, instead of reporting the fact that the first instance of the
-// assigment is effectively redundant.
 fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRefWithSource, bt: BindType)
+    -> Result<(),String>
+{
+    bind_(scopes, &mut HashSet::new(), lhs, rhs, bt)
+}
+
+fn bind_(
+    scopes: &mut ScopeStack,
+    already_declared: &mut HashSet<String>,
+    lhs: Expr,
+    rhs: ValRefWithSource,
+    bt: BindType,
+)
     -> Result<(),String>
 {
     match lhs {
         Expr::Var{name} => {
-            bind_name(scopes, name, rhs, bt)
+            bind_name_(scopes, already_declared, name, rhs, bt)
         }
 
         Expr::List{xs} => {
             match &*rhs.v.lock().unwrap() {
                 Value::List{xs: ys} => {
                     // TODO Investigate removing the call to `to_vec()`.
-                    bind_list(scopes, xs, ys.to_vec(), bt)
+                    bind_list(scopes, already_declared, xs, ys.to_vec(), bt)
                 },
                 _ => {
                     Err(format!("can't destructure non-list into list"))
@@ -365,7 +372,7 @@ fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRefWithSource, bt: BindType)
         Expr::Object{props: lhs_props} => {
             match &*rhs.v.lock().unwrap() {
                 Value::Object{props: rhs_props} => {
-                    bind_object(scopes, lhs_props, rhs_props.clone(), bt)
+                    bind_object(scopes, already_declared, lhs_props, rhs_props.clone(), bt)
                 },
                 _ => {
                     Err(format!("can't destructure non-object into object"))
@@ -395,9 +402,26 @@ enum BindType {
 fn bind_name(scopes: &mut ScopeStack, name: String, rhs: ValRefWithSource, bind_type: BindType)
     -> Result<(),String>
 {
+    bind_name_(scopes, &mut HashSet::new(), name, rhs, bind_type)
+}
+
+fn bind_name_(
+    scopes: &mut ScopeStack,
+    already_declared: &mut HashSet<String>,
+    name: String,
+    rhs: ValRefWithSource,
+    bind_type: BindType,
+)
+    -> Result<(),String>
+{
     if name == "_" {
         return Ok(())
     }
+
+    if already_declared.contains(&name) {
+        return Err(format!("'{}' has already been declared in this binding", name));
+    }
+    already_declared.insert(name.clone());
 
     match bind_type {
         BindType::Assignment => {
@@ -416,7 +440,13 @@ fn bind_name(scopes: &mut ScopeStack, name: String, rhs: ValRefWithSource, bind_
     Ok(())
 }
 
-fn bind_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRefWithSource>, bt: BindType)
+fn bind_list(
+    scopes: &mut ScopeStack,
+    mut already_declared: &mut HashSet<String>,
+    lhs: Vec<ListItem>,
+    rhs: Vec<ValRefWithSource>,
+    bt: BindType,
+)
     -> Result<(),String>
 {
     if lhs.len() == 0 {
@@ -428,12 +458,18 @@ fn bind_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRefWithSou
 
     let ListItem{is_unspread, ..} = lhs[lhs.len()-1];
     if is_unspread {
-        return bind_unspread_list(scopes, lhs, rhs, bt);
+        return bind_unspread_list(scopes, &mut already_declared, lhs, rhs, bt);
     }
-    return bind_exact_list(scopes, lhs, rhs, bt);
+    return bind_exact_list(scopes, &mut already_declared, lhs, rhs, bt);
 }
 
-fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: Vec<ValRefWithSource>, bt: BindType)
+fn bind_unspread_list(
+    scopes: &mut ScopeStack,
+    mut already_declared: &mut HashSet<String>,
+    mut lhs: Vec<ListItem>,
+    mut rhs: Vec<ValRefWithSource>,
+    bt: BindType,
+)
     -> Result<(),String>
 {
     if lhs.len() > rhs.len() {
@@ -453,14 +489,14 @@ fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: 
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = bind(scopes, expr, rhs, bt) {
+        if let Err(e) = bind_(scopes, &mut already_declared, expr, rhs, bt) {
             return Err(e);
         }
     }
 
     match unspread_expr {
         Expr::Var{name} => {
-            bind_name(scopes, name, new_val_ref(Value::List{xs: rhs_rest}), bt)
+            bind_name_(scopes, &mut already_declared, name, new_val_ref(Value::List{xs: rhs_rest}), bt)
         }
         _ => {
             Err(format!("can only unspread to a variable"))
@@ -468,7 +504,13 @@ fn bind_unspread_list(scopes: &mut ScopeStack, mut lhs: Vec<ListItem>, mut rhs: 
     }
 }
 
-fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRefWithSource>, bt: BindType)
+fn bind_exact_list(
+    scopes: &mut ScopeStack,
+    mut already_declared: &mut HashSet<String>,
+    lhs: Vec<ListItem>,
+    rhs: Vec<ValRefWithSource>,
+    bt: BindType,
+)
     -> Result<(),String>
 {
     if lhs.len() != rhs.len() {
@@ -480,7 +522,7 @@ fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRefW
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = bind(scopes, expr, rhs, bt) {
+        if let Err(e) = bind_(scopes, &mut already_declared, expr, rhs, bt) {
             return Err(e);
         }
     }
@@ -490,6 +532,7 @@ fn bind_exact_list(scopes: &mut ScopeStack, lhs: Vec<ListItem>, rhs: Vec<ValRefW
 
 fn bind_object(
     scopes: &mut ScopeStack,
+    mut already_declared: &mut HashSet<String>,
     lhs: Vec<PropItem>,
     rhs: HashMap<String,ValRefWithSource>,
     bt: BindType,
@@ -531,7 +574,7 @@ fn bind_object(
 
                         let lhs = Expr::Var{name: name.clone()};
                         let new_rhs = new_val_ref(Value::Object{props});
-                        if let Err(e) = bind(scopes, lhs, new_rhs, bt) {
+                        if let Err(e) = bind_(scopes, &mut already_declared, lhs, new_rhs, bt) {
                             return Err(format!("couldn't bind '{}': {}", name, e));
                         }
                     } else {
@@ -541,7 +584,7 @@ fn bind_object(
                     rhs_keys.remove(&name);
 
                     let item_name = Expr::Str{s: name.clone()};
-                    let result = bind_object_pair(scopes, expr, &rhs, &item_name, bt);
+                    let result = bind_object_pair(scopes, &mut already_declared, expr, &rhs, &item_name, bt);
                     if let Err(e) = result {
                         return Err(format!("couldn't bind object pair '{}': {}", name, e));
                     }
@@ -563,7 +606,7 @@ fn bind_object(
 
                 rhs_keys.remove(&prop_name);
 
-                let result = bind_object_pair(scopes, new_lhs, &rhs, &name, bt);
+                let result = bind_object_pair(scopes, already_declared, new_lhs, &rhs, &name, bt);
                 if let Err(e) = result {
                     return Err(format!("couldn't bind object pair '{}': {}", prop_name, e));
                 }
@@ -578,6 +621,7 @@ fn bind_object(
 // isn't very clear at present, and should be clarified when possible.
 fn bind_object_pair(
     scopes: &mut ScopeStack,
+    mut already_declared: &mut HashSet<String>,
     lhs: Expr,
     rhs: &HashMap<String,ValRefWithSource>,
     item_name: &Expr,
@@ -604,7 +648,7 @@ fn bind_object_pair(
             None => return Err(format!("property '{}' not found in source object", name)),
         };
 
-    if let Err(e) = bind(scopes, lhs, new_rhs, bt) {
+    if let Err(e) = bind_(scopes, &mut already_declared, lhs, new_rhs, bt) {
         return Err(format!("couldn't bind '{}': {}", name, e));
     }
 

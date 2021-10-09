@@ -1,0 +1,9 @@
+let a = 'y';
+
+let x = {a: 1};
+
+print(x);
+
+{a: a} = {'y': 1};
+
+print(a);
