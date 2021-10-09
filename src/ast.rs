@@ -11,7 +11,7 @@ pub enum Prog {
 pub enum Stmt {
     Declare{lhs: Expr, rhs: Expr, dt: DeclarationType},
     Assign{lhs: Expr, rhs: Expr},
-    OpAssign{name: String, op: BinaryOp, rhs: Expr},
+    OpAssign{lhs: Expr, op: BinaryOp, rhs: Expr},
 
     If{cond: Expr, if_stmts: Vec<Stmt>, else_stmts: Option<Vec<Stmt>>},
     While{cond: Expr, stmts: Vec<Stmt>},

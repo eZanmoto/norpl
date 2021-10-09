@@ -115,11 +115,11 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
             }
         },
 
-        Stmt::OpAssign{name, op, rhs} => {
+        Stmt::OpAssign{lhs, op, rhs} => {
             let lhs =
-                match scopes.get(name) {
-                    Some(v) => v.clone(),
-                    None => return Err(format!("'{}' isn't defined", name)),
+                match eval_expr(scopes, &lhs) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
                 };
 
             let rhs =
@@ -134,15 +134,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     Err(e) => return Err(e),
                 };
 
-            let r = bind_name(
-                scopes,
-                name.to_string(),
-                new_val_ref(v_),
-                BindType::Assignment,
-            );
-            if let Err(e) = r {
-                return Err(e);
-            }
+            *lhs.v.lock().unwrap() = v_;
         },
 
         Stmt::If{cond, if_stmts, else_stmts} => {

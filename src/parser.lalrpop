@@ -17,10 +17,10 @@ pub Stmt: Stmt = {
     "const" <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Const},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
 
-    <name:Ident> "+=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: BinaryOp::Sum, rhs},
-    <name:Ident> "-=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: BinaryOp::Sub, rhs},
-    <name:Ident> "*=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: BinaryOp::Mul, rhs},
-    <name:Ident> "/=" <rhs:Expr> ";" => Stmt::OpAssign{name, op: BinaryOp::Div, rhs},
+    <lhs:Expr> "+=" <rhs:Expr> ";" => Stmt::OpAssign{lhs, op: BinaryOp::Sum, rhs},
+    <lhs:Expr> "-=" <rhs:Expr> ";" => Stmt::OpAssign{lhs, op: BinaryOp::Sub, rhs},
+    <lhs:Expr> "*=" <rhs:Expr> ";" => Stmt::OpAssign{lhs, op: BinaryOp::Mul, rhs},
+    <lhs:Expr> "/=" <rhs:Expr> ";" => Stmt::OpAssign{lhs, op: BinaryOp::Div, rhs},
 
     <stmt:IfStmt> => stmt,
     "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
