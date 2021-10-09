@@ -1125,6 +1125,11 @@ pub type ValRef = Arc<Mutex<Value>>;
 // it includes the most recent object it was referenced from. For example, in
 // the case of `x['f']`, the `ValRef` is the value stored at the location
 // `'f'`, and the `source` of this value is `x`.
+//
+// TODO Note that a value's source should ideally be stored with the value
+// inside the mutex itself, i.e. as `Arc<Mutex<(Value, Arc<Mutex<Value>>)>>`.
+// In particular, it's not possible to overwrite the value in a mutex and its
+// source in the same assignment (atomically) with the current structure.
 #[derive(Clone,Debug)]
 pub struct ValRefWithSource {
     pub v: ValRef,
@@ -1187,6 +1192,11 @@ impl ScopeStack {
                 if *decl_type == DeclType::Const {
                     return Err(format!("cannot assign to constant binding"));
                 }
+                // This should ideally overwrite the value stored in this
+                // variable instead of introducing a new variable with a new
+                // binding, but this isn't possible at present with the current
+                // structure of `ValRefWithSource`; see the comment above
+                // `ValRefWithSource` for more details.
                 unlocked_scope.insert(name, (v, DeclType::Var));
                 return Ok(());
             }
