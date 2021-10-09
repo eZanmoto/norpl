@@ -1,14 +1,9 @@
-let x = {
-    'a': 1,
-    'b': 2,
-    'c': 3,
-};
+let a = 'y';
 
-for [k, v] in x {
-    print(k);
-    print(v);
-}
+let x = {a: 1};
 
-for kv in x {
-    print(kv);
-}
+print(x);
+
+{a: a} = {'y': 1};
+
+print(a);

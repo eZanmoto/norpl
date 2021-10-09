@@ -540,18 +540,32 @@ fn bind_object(
                 } else {
                     rhs_keys.remove(&name);
 
-                    let result = bind_object_pair(scopes, expr, &rhs, &name, bt);
+                    let item_name = Expr::Str{s: name.clone()};
+                    let result = bind_object_pair(scopes, expr, &rhs, &item_name, bt);
                     if let Err(e) = result {
                         return Err(format!("couldn't bind object pair '{}': {}", name, e));
                     }
                 }
             },
             PropItem::Pair{name, value: new_lhs} => {
-                rhs_keys.remove(&name);
+                let prop_name =
+                    match eval_expr(scopes, &name) {
+                        Ok(v) => {
+                            match &*v.v.lock().unwrap() {
+                                Value::Str{s} => s.clone(),
+                                _ => return Err(format!("property key must be a string")),
+                            }
+                        },
+                        Err(e) => {
+                            return Err(e);
+                        },
+                    };
+
+                rhs_keys.remove(&prop_name);
 
                 let result = bind_object_pair(scopes, new_lhs, &rhs, &name, bt);
                 if let Err(e) = result {
-                    return Err(format!("couldn't bind object pair '{}': {}", name, e));
+                    return Err(format!("couldn't bind object pair '{}': {}", prop_name, e));
                 }
             },
         }
@@ -566,19 +580,32 @@ fn bind_object_pair(
     scopes: &mut ScopeStack,
     lhs: Expr,
     rhs: &HashMap<String,ValRefWithSource>,
-    item_name: &String,
+    item_name: &Expr,
     bt: BindType,
 )
     -> Result<(),String>
 {
+    let name =
+        match eval_expr(scopes, item_name) {
+            Ok(v) => {
+                match &*v.v.lock().unwrap() {
+                    Value::Str{s} => s.clone(),
+                    _ => return Err(format!("property key must be a string")),
+                }
+            },
+            Err(e) => {
+                return Err(e);
+            },
+        };
+
     let new_rhs =
-        match rhs.get(item_name) {
+        match rhs.get(&name) {
             Some(v) => v.clone(),
-            None => return Err(format!("property '{}' not found in source object", item_name)),
+            None => return Err(format!("property '{}' not found in source object", name)),
         };
 
     if let Err(e) = bind(scopes, lhs, new_rhs, bt) {
-        return Err(format!("couldn't bind '{}': {}", item_name, e));
+        return Err(format!("couldn't bind '{}': {}", name, e));
     }
 
     Ok(())
@@ -750,13 +777,26 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
             for prop in props {
                 match prop {
                     PropItem::Pair{name, value} => {
+                        let k =
+                            match eval_expr(scopes, &name) {
+                                Ok(v) => {
+                                    match &*v.v.lock().unwrap() {
+                                        Value::Str{s} => s.clone(),
+                                        _ => return Err(format!("property key must be a string")),
+                                    }
+                                },
+                                Err(e) => {
+                                    return Err(e);
+                                },
+                            };
+
                         let v =
                             match eval_expr(scopes, &value) {
                                 Ok(v) => v,
                                 Err(e) => return Err(e),
                             };
 
-                        vals.insert(name.clone(), v);
+                        vals.insert(k, v);
                     },
                     PropItem::Single{expr, is_spread, is_unspread} => {
                         if *is_unspread {
