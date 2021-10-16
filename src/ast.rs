@@ -28,7 +28,7 @@ pub enum Stmt {
 #[derive(Clone,Debug)]
 pub struct Branch {
     pub cond: Expr,
-    pub block: Block,
+    pub stmts: Block,
 }
 
 #[derive(Clone,Debug)]

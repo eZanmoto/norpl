@@ -135,7 +135,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
         },
 
         Stmt::If{branches, else_stmts} => {
-            for Branch{cond, block} in branches {
+            for Branch{cond, stmts} in branches {
                 let cond =
                     match eval_expr(scopes, &cond) {
                         Ok(v) => v,
@@ -149,7 +149,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     };
 
                 if b {
-                    return eval_stmts_in_new_scope(scopes, &block);
+                    return eval_stmts_in_new_scope(scopes, &stmts);
                 }
             }
 

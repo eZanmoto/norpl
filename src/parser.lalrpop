@@ -51,16 +51,16 @@ pub Block: Block = {
 
 pub IfStmt: (Vec<Branch>, Option<Block>) = {
     "if" <cond:Expr> <if_stmts:Block> => {
-        (vec![Branch{cond, block: if_stmts}], None)
+        (vec![Branch{cond, stmts: if_stmts}], None)
     },
 
     "if" <cond:Expr> <if_stmts:Block> "else" <else_stmts:Block> => {
-        (vec![Branch{cond, block: if_stmts}], Some(else_stmts))
+        (vec![Branch{cond, stmts: if_stmts}], Some(else_stmts))
     },
 
     "if" <cond:Expr> <if_stmts:Block> "else" <if_else_stmts:IfStmt> => {
         let (mut branches, else_stmts) = if_else_stmts;
-        branches.insert(0, Branch{cond, block: if_stmts});
+        branches.insert(0, Branch{cond, stmts: if_stmts});
 
         (branches, else_stmts)
     },
