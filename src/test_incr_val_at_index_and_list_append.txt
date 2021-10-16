@@ -1,0 +1,7 @@
+let a = [1];
+a[0] += 2;
+print(a);
+
+let x = [1];
+x += [2];
+print(x);

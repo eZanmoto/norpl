@@ -22,7 +22,11 @@ pub Stmt: Stmt = {
     <lhs:Expr> "*=" <rhs:Expr> ";" => Stmt::OpAssign{lhs, op: BinaryOp::Mul, rhs},
     <lhs:Expr> "/=" <rhs:Expr> ";" => Stmt::OpAssign{lhs, op: BinaryOp::Div, rhs},
 
-    <stmt:IfStmt> => stmt,
+    <stmt:IfStmt> => {
+        let (branches, else_stmts) = stmt;
+
+        Stmt::If{branches, else_stmts}
+    },
     "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
     "for" <lhs:Expr> "in" <iter:Expr> <stmts:Block> => Stmt::For{lhs, iter, stmts},
 
@@ -45,11 +49,21 @@ pub Block: Vec<Stmt> = {
     "{" <stmts:Stmt*> "}" => stmts,
 }
 
-pub IfStmt: Stmt = {
-    "if" <cond:Expr> <if_stmts:Block> =>
-        Stmt::If{cond, if_stmts, else_stmts: None},
-    "if" <cond:Expr> <if_stmts:Block> "else" <else_stmts:Block> =>
-        Stmt::If{cond, if_stmts, else_stmts: Some(else_stmts)},
+pub IfStmt: (Vec<Branch>, Option<Vec<Stmt>>) = {
+    "if" <cond:Expr> <if_stmts:Block> => {
+        (vec![Branch{cond, block: if_stmts}], None)
+    },
+
+    "if" <cond:Expr> <if_stmts:Block> "else" <else_stmts:Block> => {
+        (vec![Branch{cond, block: if_stmts}], Some(else_stmts))
+    },
+
+    "if" <cond:Expr> <if_stmts:Block> "else" <if_else_stmts:IfStmt> => {
+        let (mut branches, else_stmts) = if_else_stmts;
+        branches.insert(0, Branch{cond, block: if_stmts});
+
+        (branches, else_stmts)
+    },
 }
 
 pub Expr: Expr = {

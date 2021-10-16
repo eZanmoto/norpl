@@ -13,7 +13,7 @@ pub enum Stmt {
     Assign{lhs: Expr, rhs: Expr},
     OpAssign{lhs: Expr, op: BinaryOp, rhs: Expr},
 
-    If{cond: Expr, if_stmts: Vec<Stmt>, else_stmts: Option<Vec<Stmt>>},
+    If{branches: Vec<Branch>, else_stmts: Option<Vec<Stmt>>},
     While{cond: Expr, stmts: Vec<Stmt>},
     For{lhs: Expr, iter: Expr, stmts: Vec<Stmt>},
 
@@ -21,6 +21,12 @@ pub enum Stmt {
     Return{expr: Expr},
 
     Expr{expr: Expr},
+}
+
+#[derive(Clone,Debug)]
+pub struct Branch {
+    pub cond: Expr,
+    pub block: Vec<Stmt>,
 }
 
 #[derive(Clone,Debug)]

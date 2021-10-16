@@ -137,22 +137,26 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
             *lhs.v.lock().unwrap() = v_;
         },
 
-        Stmt::If{cond, if_stmts, else_stmts} => {
-            let cond =
-                match eval_expr(scopes, &cond) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+        Stmt::If{branches, else_stmts} => {
+            for Branch{cond, block} in branches {
+                let cond =
+                    match eval_expr(scopes, &cond) {
+                        Ok(v) => v,
+                        Err(e) => return Err(e),
+                    };
 
-            let b =
-                match *cond.v.lock().unwrap() {
-                    Value::Bool{b} => b,
-                    _ => return Err(format!("condition must be a `bool`")),
-                };
+                let b =
+                    match *cond.v.lock().unwrap() {
+                        Value::Bool{b} => b,
+                        _ => return Err(format!("condition must be a `bool`")),
+                    };
 
-            if b {
-                return eval_stmts_in_new_scope(scopes, &if_stmts);
-            } else if let Some(stmts) = else_stmts {
+                if b {
+                    return eval_stmts_in_new_scope(scopes, &block);
+                }
+            }
+
+            if let Some(stmts) = else_stmts {
                 return eval_stmts_in_new_scope(scopes, &stmts);
             }
         },
