@@ -419,18 +419,15 @@ fn bind_name_(
     }
     already_declared.insert(name.clone());
 
-    match bind_type {
-        BindType::Assignment => {
-            if let Err(e) = scopes.assign(name.clone(), rhs) {
-                return Err(e);
-            }
-        },
-        BindType::ConstDeclaration => {
-            scopes.declare(name, rhs, DeclType::Const);
-        },
-        BindType::VarDeclaration => {
-            scopes.declare(name, rhs, DeclType::Var);
-        },
+    let result =
+        match bind_type {
+            BindType::Assignment => scopes.assign(name.clone(), rhs),
+            BindType::ConstDeclaration => scopes.declare(name, rhs, DeclType::Const),
+            BindType::VarDeclaration => scopes.declare(name, rhs, DeclType::Var),
+        };
+
+    if let Err(e) = result {
+        return Err(e);
     }
 
     Ok(())
@@ -1263,12 +1260,21 @@ impl ScopeStack {
         ScopeStack::new(scopes)
     }
 
-    fn declare(&mut self, name: String, v: ValRefWithSource, decl_type: DeclType) {
-        self.0.last()
-            .expect("`ScopeStack` stack shouldn't be empty")
-            .lock()
-            .unwrap()
-            .insert(name, (v, decl_type));
+    fn declare(&mut self, name: String, v: ValRefWithSource, decl_type: DeclType)
+        -> Result<(), String>
+    {
+        let mut cur_scope =
+            self.0.last()
+                .expect("`ScopeStack` stack shouldn't be empty")
+                .lock()
+                .unwrap();
+
+        if cur_scope.contains_key(&name) {
+            return Err(format!("'{}' is already defined in this scope", name));
+        }
+        cur_scope.insert(name, (v, decl_type));
+
+        Ok(())
     }
 
     // `assign` replaces `name` in the topmost scope of this `ScopeStack` and
