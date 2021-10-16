@@ -4,8 +4,10 @@
 
 #[derive(Clone,Debug)]
 pub enum Prog {
-    Body{stmts: Vec<Stmt>},
+    Body{stmts: Block},
 }
+
+pub type Block = Vec<Stmt>;
 
 #[derive(Clone,Debug)]
 pub enum Stmt {
@@ -13,11 +15,11 @@ pub enum Stmt {
     Assign{lhs: Expr, rhs: Expr},
     OpAssign{lhs: Expr, op: BinaryOp, rhs: Expr},
 
-    If{branches: Vec<Branch>, else_stmts: Option<Vec<Stmt>>},
-    While{cond: Expr, stmts: Vec<Stmt>},
-    For{lhs: Expr, iter: Expr, stmts: Vec<Stmt>},
+    If{branches: Vec<Branch>, else_stmts: Option<Block>},
+    While{cond: Expr, stmts: Block},
+    For{lhs: Expr, iter: Expr, stmts: Block},
 
-    Func{name: String, args: Vec<Expr>, stmts: Vec<Stmt>},
+    Func{name: String, args: Vec<Expr>, stmts: Block},
     Return{expr: Expr},
 
     Expr{expr: Expr},
@@ -26,7 +28,7 @@ pub enum Stmt {
 #[derive(Clone,Debug)]
 pub struct Branch {
     pub cond: Expr,
-    pub block: Vec<Stmt>,
+    pub block: Block,
 }
 
 #[derive(Clone,Debug)]
@@ -56,7 +58,7 @@ pub enum Expr {
 
     Object{props: Vec<PropItem>},
 
-    Func{args: Vec<Expr>, stmts: Vec<Stmt>},
+    Func{args: Vec<Expr>, stmts: Block},
     Call{expr: Box<Expr>, args: Vec<Expr>},
 }
 

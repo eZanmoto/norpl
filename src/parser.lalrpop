@@ -45,11 +45,11 @@ pub ArgNames: Vec<String> = {
     },
 }
 
-pub Block: Vec<Stmt> = {
+pub Block: Block = {
     "{" <stmts:Stmt*> "}" => stmts,
 }
 
-pub IfStmt: (Vec<Branch>, Option<Vec<Stmt>>) = {
+pub IfStmt: (Vec<Branch>, Option<Block>) = {
     "if" <cond:Expr> <if_stmts:Block> => {
         (vec![Branch{cond, block: if_stmts}], None)
     },

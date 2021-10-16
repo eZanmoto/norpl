@@ -31,10 +31,7 @@ pub fn eval_prog(
 
 // See `eval_stmts` for more information on the values
 // `eval_stmts_in_new_scope` returns.
-pub fn eval_stmts_in_new_scope(
-    outer_scopes: &mut ScopeStack,
-    stmts: &Vec<Stmt>,
-)
+pub fn eval_stmts_in_new_scope(outer_scopes: &mut ScopeStack, stmts: &Block)
     -> Result<Option<ValRefWithSource>,String>
 {
     eval_stmts(outer_scopes, vec![], stmts)
@@ -47,7 +44,7 @@ pub fn eval_stmts_in_new_scope(
 pub fn eval_stmts(
     scopes: &mut ScopeStack,
     new_bindings: Vec<(Expr, ValRefWithSource)>,
-    stmts: &Vec<Stmt>,
+    stmts: &Block,
 )
     -> Result<Option<ValRefWithSource>,String>
 {
@@ -1240,7 +1237,7 @@ pub enum Value {
     Object{props: HashMap<String,ValRefWithSource>},
 
     BuiltInFunc{f: fn(Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>},
-    Func{args: Vec<Expr>, stmts: Vec<Stmt>, closure: ScopeStack},
+    Func{args: Vec<Expr>, stmts: Block, closure: ScopeStack},
 }
 
 #[derive(Clone,Debug)]
