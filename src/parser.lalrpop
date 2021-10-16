@@ -105,6 +105,13 @@ pub Application: Expr = {
     <expr:Application> "[" <location:Expr> "]" =>
         Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 
+    <expr:Application> "[" <start:Expr?> ":" <end:Expr?> "]" =>
+        Expr::IndexRange{
+            expr: Box::new(expr),
+            start: start.map(|v| Box::new(v)),
+            end: end.map(|v| Box::new(v)),
+        },
+
     <expr:Application> "." <name:Ident> =>
         Expr::Prop{expr: Box::new(expr), name},
 

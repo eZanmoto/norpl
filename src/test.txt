@@ -1,15 +1,9 @@
-fn test(x) {
-    if x == 1 {
-        print('a');
-    } else if x == 2 {
-        print('b');
-    } else if x == 3 {
-        print('c');
-    } else {
-        print('d');
-    }
-}
+let xs = [1, 2, 3, 4, 5];
 
-for [i, v] in [1, 2, 3, 4] {
-    test(v);
-}
+print(xs[0:3]);
+print(xs[1:4]);
+print(xs[1:5]);
+
+print(xs[:3]);
+print(xs[2:]);
+print(xs[:]);

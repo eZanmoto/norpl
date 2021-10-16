@@ -1,0 +1,15 @@
+fn test(x) {
+    if x == 1 {
+        print('a');
+    } else if x == 2 {
+        print('b');
+    } else if x == 3 {
+        print('c');
+    } else {
+        print('d');
+    }
+}
+
+for [i, v] in [1, 2, 3, 4] {
+    test(v);
+}

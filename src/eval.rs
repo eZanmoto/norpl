@@ -376,6 +376,9 @@ fn bind_(
             }
         },
 
+        // TODO Investigate binding to index ranges.
+        Expr::IndexRange{..} => return Err(format!("cannot bind to an index range")),
+
         Expr::Range{..} => return Err(format!("cannot bind to a range")),
         Expr::Null => return Err(format!("cannot bind to `null`")),
         Expr::Bool{..} => return Err(format!("cannot bind to a boolean literal")),
@@ -784,6 +787,74 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
             };
         },
 
+        Expr::IndexRange{expr, start: maybe_start, end: maybe_end} => {
+            match eval_expr(scopes, expr) {
+                Ok(source) => {
+                    match &*source.v.lock().unwrap() {
+                        Value::List{xs} => {
+                            if let Some(start) = maybe_start {
+                                match eval_expr(scopes, start) {
+                                    Ok(v) => {
+                                        match &*v.v.lock().unwrap() {
+                                            Value::Int{n: start} => {
+                                                if let Some(end) = maybe_end {
+                                                    match eval_expr(scopes, end) {
+                                                        Ok(v) => {
+                                                            match &*v.v.lock().unwrap() {
+                                                                Value::Int{n: end} => {
+                                                                    return get_index_range(
+                                                                        xs,
+                                                                        Some(*start as usize),
+                                                                        Some(*end as usize),
+                                                                    );
+                                                                },
+                                                                _ => return Err(format!("index must be an integer")),
+                                                            }
+                                                        },
+                                                        Err(e) => {
+                                                            return Err(e);
+                                                        },
+                                                    }
+                                                }
+
+                                                return get_index_range(xs, Some(*start as usize), None);
+                                            },
+                                            _ => return Err(format!("index must be an integer")),
+                                        }
+                                    },
+                                    Err(e) => {
+                                        return Err(e);
+                                    },
+                                }
+                            }
+
+                            if let Some(end) = maybe_end {
+                                match eval_expr(scopes, end) {
+                                    Ok(v) => {
+                                        match &*v.v.lock().unwrap() {
+                                            Value::Int{n: end} => {
+                                                return get_index_range(xs, None, Some(*end as usize));
+                                            },
+                                            _ => return Err(format!("index must be an integer")),
+                                        }
+                                    },
+                                    Err(e) => {
+                                        return Err(e);
+                                    },
+                                }
+                            }
+                            return get_index_range(xs, None, None);
+                        },
+
+                        _ => return Err(format!("can only index range lists")),
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                },
+            };
+        },
+
         Expr::Prop{expr, name} => {
             match eval_expr(scopes, expr) {
                 Ok(source) => {
@@ -1024,6 +1095,24 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
         // _ => Err(format!("unhandled expression: {:?}", expr)),
     }
+}
+
+fn get_index_range(
+    xs: &Vec<ValRefWithSource>,
+    mut maybe_start: Option<usize>,
+    mut maybe_end: Option<usize>,
+)
+    -> Result<ValRefWithSource,String>
+{
+    let start = maybe_start.get_or_insert(0);
+    let end = maybe_end.get_or_insert(xs.len());
+
+    if let Some(vs) = xs.get(*start .. *end) {
+        let list = Value::List{xs: vs.to_vec()};
+        return Ok(new_val_ref(list));
+    }
+
+    Err(format!("index out of bounds"))
 }
 
 pub fn eval_exprs(scopes: &mut ScopeStack, exprs: &Vec<Expr>)

@@ -51,6 +51,7 @@ pub enum Expr {
     List{xs: Vec<ListItem>},
     Range{start: Box<Expr>, end: Box<Expr>},
     Index{expr: Box<Expr>, location: Box<Expr>},
+    IndexRange{expr: Box<Expr>, start: Option<Box<Expr>>, end: Option<Box<Expr>>},
     Prop{expr: Box<Expr>, name: String},
 
     Object{props: Vec<PropItem>},
