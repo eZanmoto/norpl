@@ -1297,7 +1297,7 @@ impl ScopeStack {
     fn assign(&mut self, name: String, v: ValRefWithSource) -> Result<(),String> {
         for scope in self.0.iter().rev() {
             let mut unlocked_scope = scope.lock().unwrap();
-            if let Some((_, (_, decl_type))) = unlocked_scope.get_key_value(&name) {
+            if let Some((_, decl_type)) = unlocked_scope.get(&name) {
                 if *decl_type == DeclType::Const {
                     return Err(format!("cannot assign to constant binding"));
                 }
