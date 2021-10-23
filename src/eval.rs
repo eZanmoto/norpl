@@ -125,13 +125,19 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     Err(e) => return Err(e),
                 };
 
+            let result = apply_binary_operation(
+                &op,
+                &lhs.lock().unwrap().v,
+                &rhs.lock().unwrap().v,
+            );
+
             let v_ =
-                match apply_binary_operation(&op, &lhs.v.lock().unwrap(), &rhs.v.lock().unwrap()) {
+                match result {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
-            *lhs.v.lock().unwrap() = v_;
+            (*lhs.lock().unwrap()).v = v_;
         },
 
         Stmt::If{branches, else_stmts} => {
@@ -143,7 +149,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     };
 
                 let b =
-                    match *cond.v.lock().unwrap() {
+                    match (*cond.lock().unwrap()).v {
                         Value::Bool{b} => b,
                         _ => return Err(format!("condition must be a `bool`")),
                     };
@@ -167,7 +173,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     };
 
                 let b =
-                    match *cond.v.lock().unwrap() {
+                    match (*cond.lock().unwrap()).v {
                         Value::Bool{b} => b,
                         _ => return Err(format!("condition must be a `bool`")),
                     };
@@ -189,7 +195,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     Err(e) => return Err(e),
                 };
 
-            match &mut *iter_.v.lock().unwrap() {
+            match &mut (*iter_.lock().unwrap()).v {
                 Value::List{xs} => {
                     let mut i = 0;
                     while xs.len() > 0 {
@@ -290,7 +296,7 @@ fn bind_(
         }
 
         Expr::List{xs} => {
-            match &*rhs.v.lock().unwrap() {
+            match &(*rhs.lock().unwrap()).v {
                 Value::List{xs: ys} => {
                     // TODO Investigate removing the call to `to_vec()`.
                     bind_list(scopes, already_declared, xs, ys.to_vec(), bt)
@@ -304,11 +310,11 @@ fn bind_(
         Expr::Index{expr, location} => {
             match eval_expr(scopes, &expr) {
                 Ok(value) => {
-                    match &mut *value.v.lock().unwrap() {
+                    match &mut (*value.lock().unwrap()).v {
                         Value::List{xs} => {
                             match eval_expr(scopes, &location) {
                                 Ok(index) => {
-                                    match &*index.v.lock().unwrap() {
+                                    match &(*index.lock().unwrap()).v {
                                         Value::Int{n} => {
                                             // TODO Handle out-of-bounds
                                             // assignment.
@@ -326,7 +332,7 @@ fn bind_(
                         Value::Object{props} => {
                             match eval_expr(scopes, &location) {
                                 Ok(index) => {
-                                    match &*index.v.lock().unwrap() {
+                                    match &(*index.lock().unwrap()).v {
                                         Value::Str{s} => {
                                             props.insert(s.to_string(), rhs);
                                         },
@@ -351,7 +357,7 @@ fn bind_(
         Expr::Prop{expr, name} => {
             match eval_expr(scopes, &expr) {
                 Ok(value) => {
-                    match &mut *value.v.lock().unwrap() {
+                    match &mut (*value.lock().unwrap()).v {
                         Value::Object{props} => props.insert(name, rhs),
                         _ => return Err(format!("can only assign to properties of objects")),
                     }
@@ -363,7 +369,7 @@ fn bind_(
         },
 
         Expr::Object{props: lhs_props} => {
-            match &*rhs.v.lock().unwrap() {
+            match &(*rhs.lock().unwrap()).v {
                 Value::Object{props: rhs_props} => {
                     bind_object(scopes, already_declared, lhs_props, rhs_props.clone(), bt)
                 },
@@ -587,7 +593,7 @@ fn bind_object(
                 let prop_name =
                     match eval_expr(scopes, &name) {
                         Ok(v) => {
-                            match &*v.v.lock().unwrap() {
+                            match &(*v.lock().unwrap()).v {
                                 Value::Str{s} => s.clone(),
                                 _ => return Err(format!("property key must be a string")),
                             }
@@ -625,7 +631,7 @@ fn bind_object_pair(
     let name =
         match eval_expr(scopes, item_name) {
             Ok(v) => {
-                match &*v.v.lock().unwrap() {
+                match &(*v.lock().unwrap()).v {
                     Value::Str{s} => s.clone(),
                     _ => return Err(format!("property key must be a string")),
                 }
@@ -673,7 +679,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                     continue;
                 }
 
-                match &*v.v.lock().unwrap() {
+                match &(*v.lock().unwrap()).v {
                     Value::List{xs} => {
                         for x in xs {
                             vals.push(x.clone());
@@ -692,7 +698,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
             let start =
                 match eval_expr(scopes, start) {
                     Ok(v) => {
-                        match *v.v.lock().unwrap() {
+                        match (*v.lock().unwrap()).v {
                             Value::Int{n} => n,
                             _ => return Err(format!("range end must be an integer")),
                         }
@@ -705,7 +711,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
             let end =
                 match eval_expr(scopes, end) {
                     Ok(v) => {
-                        match *v.v.lock().unwrap() {
+                        match (*v.lock().unwrap()).v {
                             Value::Int{n} => n,
                             _ => return Err(format!("range end must be an integer")),
                         }
@@ -726,11 +732,11 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
         Expr::Index{expr, location} => {
             match eval_expr(scopes, expr) {
                 Ok(source) => {
-                    match &*source.v.lock().unwrap() {
+                    match &(*source.lock().unwrap()).v {
                         Value::List{xs} => {
                             match eval_expr(scopes, location) {
                                 Ok(v) => {
-                                    match &*v.v.lock().unwrap() {
+                                    match &(*v.lock().unwrap()).v {
                                         Value::Int{n} => {
                                             match xs.get(*n as usize) {
                                                 Some(v) => return Ok(v.clone()),
@@ -749,14 +755,15 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                         Value::Object{props} => {
                             match eval_expr(scopes, location) {
                                 Ok(v) => {
-                                    match &*v.v.lock().unwrap() {
+                                    match &(*v.lock().unwrap()).v {
                                         Value::Str{s: name} => {
                                             match props.get(name) {
                                                 Some(v) => {
-                                                    return Ok(ValRefWithSource{
-                                                        v: v.v.clone(),
-                                                        source: Some(source.v.clone()),
-                                                    });
+                                                    let prop_val = &(*v.lock().unwrap()).v;
+                                                    return Ok(new_val_ref_with_source(
+                                                        prop_val.clone(),
+                                                        source.clone(),
+                                                    ));
                                                 },
                                                 None => {
                                                     return Err(format!("property name not found"));
@@ -784,17 +791,17 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
         Expr::IndexRange{expr, start: maybe_start, end: maybe_end} => {
             match eval_expr(scopes, expr) {
                 Ok(source) => {
-                    match &*source.v.lock().unwrap() {
+                    match &(*source.lock().unwrap()).v {
                         Value::List{xs} => {
                             if let Some(start) = maybe_start {
                                 match eval_expr(scopes, start) {
                                     Ok(v) => {
-                                        match &*v.v.lock().unwrap() {
+                                        match &(*v.lock().unwrap()).v {
                                             Value::Int{n: start} => {
                                                 if let Some(end) = maybe_end {
                                                     match eval_expr(scopes, end) {
                                                         Ok(v) => {
-                                                            match &*v.v.lock().unwrap() {
+                                                            match &(*v.lock().unwrap()).v {
                                                                 Value::Int{n: end} => {
                                                                     return get_index_range(
                                                                         xs,
@@ -825,7 +832,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                             if let Some(end) = maybe_end {
                                 match eval_expr(scopes, end) {
                                     Ok(v) => {
-                                        match &*v.v.lock().unwrap() {
+                                        match &(*v.lock().unwrap()).v {
                                             Value::Int{n: end} => {
                                                 return get_index_range(xs, None, Some(*end as usize));
                                             },
@@ -851,15 +858,16 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
         Expr::Prop{expr, name} => {
             match eval_expr(scopes, expr) {
-                Ok(source) => {
-                    match &*source.v.lock().unwrap() {
+                Ok(object) => {
+                    match &(*object.lock().unwrap()).v {
                         Value::Object{props} => {
                             match props.get(name) {
                                 Some(v) => {
-                                    return Ok(ValRefWithSource{
-                                        v: v.v.clone(),
-                                        source: Some(source.v.clone()),
-                                    });
+                                    let prop_val = &(*v.lock().unwrap()).v;
+                                    return Ok(new_val_ref_with_source(
+                                        prop_val.clone(),
+                                        object.clone(),
+                                    ));
                                 },
                                 None => {
                                     return Err(format!("property name not found"));
@@ -885,7 +893,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                         let k =
                             match eval_expr(scopes, &name) {
                                 Ok(v) => {
-                                    match &*v.v.lock().unwrap() {
+                                    match &(*v.lock().unwrap()).v {
                                         Value::Str{s} => s.clone(),
                                         _ => return Err(format!("property key must be a string")),
                                     }
@@ -915,7 +923,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                                     Err(e) => return Err(e),
                                 };
 
-                            match &*v.v.lock().unwrap() {
+                            match &(*v.lock().unwrap()).v {
                                 Value::Object{props} => {
                                     for (name, value) in props.iter() {
                                         vals.insert(name.to_string(), value.clone());
@@ -955,7 +963,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                 };
 
             let result =
-                match apply_unary_operation(op, &v.v.lock().unwrap()) {
+                match apply_unary_operation(op, &v.lock().unwrap().v) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -976,7 +984,12 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
             let v =
                 if let [lhs, rhs] = vals.as_slice() {
-                    match apply_binary_operation(op, &lhs.v.lock().unwrap(), &rhs.v.lock().unwrap()) {
+                    let result = apply_binary_operation(
+                        op,
+                        &lhs.lock().unwrap().v,
+                        &rhs.lock().unwrap().v,
+                    );
+                    match result {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     }
@@ -1006,8 +1019,9 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
             let v =
                 match eval_expr(scopes, &expr) {
-                    Ok(ValRefWithSource{v: value, source}) => {
-                        match &mut *value.lock().unwrap() {
+                    Ok(value) => {
+                        let ValWithSource{v, source} = &*value.lock().unwrap();
+                        match v {
                             Value::BuiltInFunc{f} => {
                                 Either::Left{value: (
                                     f.clone(),
@@ -1030,10 +1044,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                                     // new AST variable node here.
                                     new_bindings.push((
                                         Expr::Var{name: "this".to_string()},
-                                        ValRefWithSource{
-                                            v: this,
-                                            source: None,
-                                        },
+                                        this.clone(),
                                     ));
                                 }
 
@@ -1195,10 +1206,17 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
 
 // TODO Consider renaming to `new_val_ref_with_no_source`.
 pub fn new_val_ref(v: Value) -> ValRefWithSource {
-    ValRefWithSource{
-        v: Arc::new(Mutex::new(v)),
+    Arc::new(Mutex::new(ValWithSource{
+        v: v,
         source: None,
-    }
+    }))
+}
+
+pub fn new_val_ref_with_source(v: Value, source: ValRefWithSource) -> ValRefWithSource {
+    Arc::new(Mutex::new(ValWithSource{
+        v: v,
+        source: Some(source),
+    }))
 }
 
 enum Either<A,B> {
@@ -1206,21 +1224,16 @@ enum Either<A,B> {
     Right{value: B},
 }
 
-pub type ValRef = Arc<Mutex<Value>>;
-
 // `ValRefWithSource` is intended to be used as a regular `ValRef` would, but
 // it includes the most recent object it was referenced from. For example, in
 // the case of `x['f']`, the `ValRef` is the value stored at the location
 // `'f'`, and the `source` of this value is `x`.
-//
-// TODO Note that a value's source should ideally be stored with the value
-// inside the mutex itself, i.e. as `Arc<Mutex<(Value, Arc<Mutex<Value>>)>>`.
-// In particular, it's not possible to overwrite the value in a mutex and its
-// source in the same assignment (atomically) with the current structure.
+pub type ValRefWithSource = Arc<Mutex<ValWithSource>>;
+
 #[derive(Clone,Debug)]
-pub struct ValRefWithSource {
-    pub v: ValRef,
-    source: Option<ValRef>,
+pub struct ValWithSource {
+    pub v: Value,
+    source: Option<ValRefWithSource>,
 }
 
 #[derive(Clone,Debug)]

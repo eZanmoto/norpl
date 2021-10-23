@@ -1,0 +1,8 @@
+let x = 1;
+if x == 1 {
+    let x = 2;
+    print(x);
+}
+print(x);
+
+# Should output 2, followed by 1.

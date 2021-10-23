@@ -57,16 +57,42 @@ fn read_test() -> String {
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
 fn print_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Remove varargs support.
-    println!("{:?}", vs[0].v);
+    println!("{}", render(vs[0].clone()));
 
     Ok(eval::new_val_ref(Value::Null))
+}
+
+fn render(v: ValRefWithSource) -> String {
+    let mut s = String::new();
+
+    match &v.lock().unwrap().v {
+        Value::List{xs} => {
+            s += "[\n";
+            for x in xs {
+                s += &format!("    {},\n", render(x.clone()));
+            }
+            s += "]";
+        },
+        Value::Object{props} => {
+            s += "{\n";
+            for (name, value) in props {
+                s += &format!("    '{}': {},\n", name, render(value.clone()));
+            }
+            s += "}";
+        },
+        value => {
+            s = format!("{:#?}", value);
+        },
+    }
+
+    s.to_string()
 }
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
 fn len_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
-    match &*vs[0].v.lock().unwrap() {
+    match &(*vs[0].lock().unwrap()).v {
         Value::List{xs} => {
             // TODO Investigate casting `usize` to `i64`.
             let n = Value::Int{n: xs.len() as i64};
@@ -84,7 +110,7 @@ fn len_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
 fn type_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     let t =
-        match &*vs[0].v.lock().unwrap() {
+        match &(*vs[0].lock().unwrap()).v {
             Value::Null => "null",
             Value::Bool{..} => "bool",
             Value::Int{..} => "int",
