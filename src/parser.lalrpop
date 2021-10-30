@@ -202,7 +202,7 @@ Ident: String = {
 
 StrLiteral: String = {
     <s:r"'[^']*'"> => s.trim_matches('\'').to_string(),
-    <s:r"[_a-zA-Z][_a-zA-Z0-9]*"> => s.to_string(),
+    <s:r"[_a-zA-Z\-][_a-zA-Z0-9\-]*"> => s.to_string(),
 };
 
 IntLiteral: i64 = {
