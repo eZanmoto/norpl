@@ -4,6 +4,8 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::process::Command;
+use std::str;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -1023,14 +1025,14 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                         let ValWithSource{v, source} = &*value.lock().unwrap();
                         match v {
                             Value::BuiltInFunc{f} => {
-                                Either::Left{value: (
-                                    f.clone(),
-                                    vals,
-                                )}
+                                CallBinding::BuiltInFunc{
+                                    f: f.clone(),
+                                    args: vals,
+                                }
                             },
 
                             Value::Func{args: arg_names, stmts, closure} => {
-                                let mut new_bindings: Vec<(Expr, ValRefWithSource)> =
+                                let mut bindings: Vec<(Expr, ValRefWithSource)> =
                                     arg_names
                                         .clone()
                                         .into_iter()
@@ -1042,20 +1044,35 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                                 if let Some(this) = source {
                                     // TODO Consider how to avoid creating a
                                     // new AST variable node here.
-                                    new_bindings.push((
+                                    bindings.push((
                                         Expr::Var{name: "this".to_string()},
                                         this.clone(),
                                     ));
                                 }
 
-                                Either::Right{value:(
-                                    new_bindings,
-                                    closure.clone(),
-                                    stmts.clone(),
-                                )}
+                                CallBinding::Func{
+                                    bindings,
+                                    closure: closure.clone(),
+                                    stmts: stmts.clone(),
+                                }
                             },
 
-                            _ => return Err(format!("can only call functions")),
+                            Value::Str{s: prog} => {
+                                let mut args = vec![];
+                                for val in vals {
+                                    match &(*val.lock().unwrap()).v {
+                                        Value::Str{s} => args.push(s.clone()),
+                                        _ => return Err(format!("program arguments must be strings")),
+                                    }
+                                }
+
+                                CallBinding::Command{
+                                    prog: prog.clone(),
+                                    args,
+                                }
+                            },
+
+                            _ => return Err(format!("can only call functions or strings")),
                         }
                     },
                     Err(e) => return Err(e),
@@ -1063,14 +1080,15 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
             let v =
                 match v {
-                    Either::Left{value: (f, vals)} => {
-                        match f(vals) {
+                    CallBinding::BuiltInFunc{f, args} => {
+                        match f(args) {
                             Ok(v) => v,
                             Err(e) => return Err(e),
                         }
                     },
-                    Either::Right{value: (new_bindings, closure, stmts)} => {
-                        let r = eval_stmts(&mut closure.clone(), new_bindings, &stmts);
+
+                    CallBinding::Func{bindings, closure, stmts} => {
+                        let r = eval_stmts(&mut closure.clone(), bindings, &stmts);
 
                         match r {
                             Ok(ret_val) => {
@@ -1081,6 +1099,43 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                             },
                             Err(e) => {
                                 return Err(e);
+                            },
+                        }
+                    },
+
+                    CallBinding::Command{prog, args} => {
+                        let mut cmd = Command::new(prog);
+                        cmd.args(args);
+
+                        match cmd.output() {
+                            Ok(output) => {
+                                let mut props = HashMap::new();
+
+                                let exit_code =
+                                    match output.status.code() {
+                                        Some(c) => c as i64,
+                                        None => return Err(format!("process didn't return exit code")),
+                                    };
+                                props.insert("ok".to_string(), new_val_ref(Value::Int{n: exit_code}));
+
+                                let stdout =
+                                    match str::from_utf8(&output.stdout) {
+                                        Ok(s) => s.to_string(),
+                                        Err(e) => return Err(format!("couldn't parse STDOUT as UTF-8: {:?}", e)),
+                                    };
+                                props.insert("stdout".to_string(), new_val_ref(Value::Str{s: stdout}));
+
+                                let stderr =
+                                    match str::from_utf8(&output.stderr) {
+                                        Ok(s) => s.to_string(),
+                                        Err(e) => return Err(format!("couldn't parse STDERR as UTF-8: {:?}", e)),
+                                    };
+                                props.insert("stderr".to_string(), new_val_ref(Value::Str{s: stderr}));
+
+                                new_val_ref(Value::Object{props})
+                            },
+                            Err(e) => {
+                                return Err(format!("process failed: {:?}", e));
                             },
                         }
                     },
@@ -1100,6 +1155,22 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
         // _ => Err(format!("unhandled expression: {:?}", expr)),
     }
+}
+
+enum CallBinding {
+    BuiltInFunc{
+        f: fn(Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>,
+        args: Vec<ValRefWithSource>,
+    },
+    Func{
+        bindings: Vec<(Expr, ValRefWithSource)>,
+        closure: ScopeStack,
+        stmts: Block,
+    },
+    Command{
+        prog: String,
+        args: Vec<String>,
+    },
 }
 
 fn get_index_range(
@@ -1217,11 +1288,6 @@ pub fn new_val_ref_with_source(v: Value, source: ValRefWithSource) -> ValRefWith
         v: v,
         source: Some(source),
     }))
-}
-
-enum Either<A,B> {
-    Left{value: A},
-    Right{value: B},
 }
 
 // `ValRefWithSource` is intended to be used as a regular `ValRef` would, but
