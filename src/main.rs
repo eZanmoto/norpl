@@ -66,6 +66,24 @@ fn render(v: ValRefWithSource) -> String {
     let mut s = String::new();
 
     match &v.lock().unwrap().v {
+        Value::Null => {
+            s += "null";
+        },
+        Value::Bool{b} => {
+            s += &format!("{}", b);
+        },
+        Value::Int{n} => {
+            s += &format!("{}", n);
+        },
+        Value::Str{s: s_} => {
+            s += &format!("'{}'", s_);
+        },
+        Value::BuiltInFunc{..} => {
+            s += "<built-in function>";
+        },
+        Value::Func{..} => {
+            s += "<user-defined function>";
+        },
         Value::List{xs} => {
             s += "[\n";
             for x in xs {
@@ -79,9 +97,6 @@ fn render(v: ValRefWithSource) -> String {
                 s += &format!("    '{}': {},\n", name, render(value.clone()));
             }
             s += "}";
-        },
-        value => {
-            s = format!("{:#?}", value);
         },
     }
 
