@@ -1116,7 +1116,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                                         Some(c) => c as i64,
                                         None => return Err(format!("process didn't return exit code")),
                                     };
-                                props.insert("ok".to_string(), new_val_ref(Value::Int{n: exit_code}));
+                                props.insert("exit_code".to_string(), new_val_ref(Value::Int{n: exit_code}));
 
                                 let stdout =
                                     match str::from_utf8(&output.stdout) {

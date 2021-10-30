@@ -1,5 +1,2 @@
-let result = 'false'();
-print(result);
-
-result = 'ls'('-l');
-print(result);
+let $result = ls('-l', scripts, tests, docs);
+$print($result);
