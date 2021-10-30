@@ -55,6 +55,7 @@ pub enum Expr {
     Index{expr: Box<Expr>, location: Box<Expr>},
     IndexRange{expr: Box<Expr>, start: Option<Box<Expr>>, end: Option<Box<Expr>>},
     Prop{expr: Box<Expr>, name: String},
+    Subcommand{expr: Box<Expr>, name: String},
 
     Object{props: Vec<PropItem>},
 

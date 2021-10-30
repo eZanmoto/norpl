@@ -389,6 +389,7 @@ fn bind_(
         Expr::Bool{..} => return Err(format!("cannot bind to a boolean literal")),
         Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
         Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
+        Expr::Subcommand{..} => return Err(format!("cannot bind to a subcommand")),
         Expr::UnaryOp{..} => return Err(format!("cannot bind to a unary operation")),
         Expr::BinaryOp{..} => return Err(format!("cannot bind to a binary operation")),
         Expr::Func{..} => return Err(format!("cannot bind to a function literal")),
@@ -866,15 +867,16 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                             match props.get(name) {
                                 Some(v) => {
                                     let prop_val = &(*v.lock().unwrap()).v;
-                                    return Ok(new_val_ref_with_source(
+
+                                    Ok(new_val_ref_with_source(
                                         prop_val.clone(),
                                         object.clone(),
-                                    ));
+                                    ))
                                 },
                                 None => {
                                     return Err(format!("property name not found"));
                                 },
-                            };
+                            }
                         },
 
                         _ => return Err(format!("can only access properties of objects")),
@@ -883,7 +885,37 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                 Err(e) => {
                     return Err(e);
                 },
-            };
+            }
+        },
+
+        Expr::Subcommand{expr, name} => {
+            match eval_expr(scopes, expr) {
+                Ok(object) => {
+                    match &(*object.lock().unwrap()).v {
+                        Value::Str{s} => {
+                            Ok(new_val_ref(Value::Command{
+                                prog: s.clone(),
+                                args: vec![name.clone()],
+                            }))
+                        },
+
+                        Value::Command{prog, args} => {
+                            let mut args_ = args.clone();
+                            args_.push(name.clone());
+
+                            Ok(new_val_ref(Value::Command{
+                                prog: prog.clone(),
+                                args: args_,
+                            }))
+                        },
+
+                        _ => return Err(format!("can only add subcommands to strings and commands")),
+                    }
+                },
+                Err(e) => {
+                    return Err(e);
+                },
+            }
         },
 
         Expr::Object{props} => {
@@ -1069,6 +1101,21 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                                 CallBinding::Command{
                                     prog: prog.clone(),
                                     args,
+                                }
+                            },
+
+                            Value::Command{prog, args} => {
+                                let mut args_ = args.clone();
+                                for val in vals {
+                                    match &(*val.lock().unwrap()).v {
+                                        Value::Str{s} => args_.push(s.clone()),
+                                        _ => return Err(format!("program arguments must be strings")),
+                                    }
+                                }
+
+                                CallBinding::Command{
+                                    prog: prog.clone(),
+                                    args: args_,
                                 }
                             },
 
@@ -1314,6 +1361,8 @@ pub enum Value {
 
     BuiltInFunc{f: fn(Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>},
     Func{args: Vec<Expr>, stmts: Block, closure: ScopeStack},
+
+    Command{prog: String, args: Vec<String>},
 }
 
 #[derive(Clone,Debug)]

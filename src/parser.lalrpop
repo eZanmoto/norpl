@@ -115,6 +115,9 @@ pub Application: Expr = {
     <expr:Application> "." <name:Ident> =>
         Expr::Prop{expr: Box::new(expr), name},
 
+    <expr:Application> "." <name:StrLiteral> =>
+        Expr::Subcommand{expr: Box::new(expr), name},
+
     <expr:Expr_> => expr,
 }
 

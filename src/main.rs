@@ -98,6 +98,9 @@ fn render(v: ValRefWithSource) -> String {
             }
             s += "}";
         },
+        Value::Command{prog, args} => {
+            s += &format!("'{}'({:?})", prog, args);
+        },
     }
 
     s.to_string()
@@ -134,6 +137,7 @@ fn type_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
             Value::Object{..} => "object",
             Value::BuiltInFunc{..} => "fn",
             Value::Func{..} => "fn",
+            Value::Command{..} => "cmd",
         };
 
     Ok(eval::new_val_ref(Value::Str{s: t.to_string()}))

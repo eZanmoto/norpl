@@ -1,2 +1,1 @@
-let $result = ls('-l', scripts, tests, docs);
-$print($result);
+$print(git.remote.remove(x));

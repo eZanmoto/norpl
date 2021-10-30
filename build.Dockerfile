@@ -30,3 +30,10 @@ RUN \
         /usr/local/bin/dpnd \
     && pip3 install \
         comment-style===0.1.0
+
+# Add this to the `apt-get install` section above.
+RUN \
+    apt-get update \
+    && apt-get install \
+        --assume-yes \
+        git
