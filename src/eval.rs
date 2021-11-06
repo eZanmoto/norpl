@@ -14,12 +14,13 @@ use ast::*;
 pub fn eval_prog(
     scopes: &mut ScopeStack,
     global_bindings: Vec<(Expr, ValRefWithSource)>,
+    std: &HashMap<String, ValRefWithSource>,
     Prog::Body{stmts}: &Prog,
 )
     -> Result<(),String>
 {
     let ret_val =
-        match eval_stmts(scopes, global_bindings, stmts) {
+        match eval_stmts(scopes, global_bindings, std, stmts) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -33,10 +34,14 @@ pub fn eval_prog(
 
 // See `eval_stmts` for more information on the values
 // `eval_stmts_in_new_scope` returns.
-pub fn eval_stmts_in_new_scope(outer_scopes: &mut ScopeStack, stmts: &Block)
+pub fn eval_stmts_in_new_scope(
+    outer_scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
+    stmts: &Block,
+)
     -> Result<Option<ValRefWithSource>,String>
 {
-    eval_stmts(outer_scopes, vec![], stmts)
+    eval_stmts(outer_scopes, vec![], std, stmts)
 }
 
 // `eval_stmts` evaluates `stmts` in a new scope pushed onto `scopes`, with the
@@ -46,6 +51,7 @@ pub fn eval_stmts_in_new_scope(outer_scopes: &mut ScopeStack, stmts: &Block)
 pub fn eval_stmts(
     scopes: &mut ScopeStack,
     new_bindings: Vec<(Expr, ValRefWithSource)>,
+    std: &HashMap<String, ValRefWithSource>,
     stmts: &Block,
 )
     -> Result<Option<ValRefWithSource>,String>
@@ -53,14 +59,14 @@ pub fn eval_stmts(
     let mut inner_scopes = scopes.new_from_push(HashMap::new());
 
     for (lhs, rhs) in new_bindings {
-        let r = bind(&mut inner_scopes, lhs.clone(), rhs, BindType::VarDeclaration);
+        let r = bind(&mut inner_scopes, std, lhs.clone(), rhs, BindType::VarDeclaration);
         if let Err(e) = r {
             return Err(e);
         }
     }
 
     for stmt in stmts {
-        match eval_stmt(&mut inner_scopes, &stmt) {
+        match eval_stmt(&mut inner_scopes, std, &stmt) {
             Ok(Some(v)) => return Ok(Some(v)),
             Err(e) => return Err(e),
             _ => {},
@@ -72,19 +78,43 @@ pub fn eval_stmts(
 
 // `eval_stmt` returns `Some(v)` if a `return` value is evaluated, otherwise it
 // returns `None`.
-fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
+fn eval_stmt(
+    scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
+    stmt: &Stmt,
+)
     -> Result<Option<ValRefWithSource>,String>
 {
     match stmt {
         Stmt::Expr{expr} => {
-            if let Err(e) = eval_expr(scopes, &expr) {
+            if let Err(e) = eval_expr(scopes, std, &expr) {
+                return Err(e);
+            }
+        },
+
+        Stmt::Import{name} => {
+            let pkg =
+                match std.get(name) {
+                    Some(v) => v,
+                    None => return Err(format!("'{}' is not a standard package", name)),
+                };
+
+            let bind_result = bind(
+                scopes,
+                std,
+                Expr::Var{name: name.clone()},
+                pkg.clone(),
+                BindType::ConstDeclaration,
+            );
+
+            if let Err(e) = bind_result {
                 return Err(e);
             }
         },
 
         Stmt::Declare{lhs, rhs, dt} => {
             let v =
-                match eval_expr(scopes, &rhs) {
+                match eval_expr(scopes, std, &rhs) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -96,33 +126,33 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                 };
 
             // TODO Consider whether `clone()` can be avoided here.
-            if let Err(e) = bind(scopes, lhs.clone(), v, bt) {
+            if let Err(e) = bind(scopes, std, lhs.clone(), v, bt) {
                 return Err(e);
             }
         },
 
         Stmt::Assign{lhs, rhs} => {
             let v =
-                match eval_expr(scopes, &rhs) {
+                match eval_expr(scopes, std, &rhs) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
             // TODO Consider whether `clone()` can be avoided here.
-            if let Err(e) = bind(scopes, lhs.clone(), v, BindType::Assignment) {
+            if let Err(e) = bind(scopes, std, lhs.clone(), v, BindType::Assignment) {
                 return Err(e);
             }
         },
 
         Stmt::OpAssign{lhs, op, rhs} => {
             let lhs =
-                match eval_expr(scopes, &lhs) {
+                match eval_expr(scopes, std, &lhs) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
             let rhs =
-                match eval_expr(scopes, &rhs) {
+                match eval_expr(scopes, std, &rhs) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -145,7 +175,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
         Stmt::If{branches, else_stmts} => {
             for Branch{cond, stmts} in branches {
                 let cond =
-                    match eval_expr(scopes, &cond) {
+                    match eval_expr(scopes, std, &cond) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -157,19 +187,19 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     };
 
                 if b {
-                    return eval_stmts_in_new_scope(scopes, &stmts);
+                    return eval_stmts_in_new_scope(scopes, std, &stmts);
                 }
             }
 
             if let Some(stmts) = else_stmts {
-                return eval_stmts_in_new_scope(scopes, &stmts);
+                return eval_stmts_in_new_scope(scopes, std, &stmts);
             }
         },
 
         Stmt::While{cond, stmts} => {
             loop {
                 let cond =
-                    match eval_expr(scopes, &cond) {
+                    match eval_expr(scopes, std, &cond) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -184,7 +214,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
                     break;
                 }
 
-                if let Err(e) = eval_stmts_in_new_scope(scopes, &stmts) {
+                if let Err(e) = eval_stmts_in_new_scope(scopes, std, &stmts) {
                     return Err(e);
                 }
             }
@@ -192,7 +222,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
 
         Stmt::For{lhs, iter, stmts} => {
             let iter_ =
-                match eval_expr(scopes, &iter) {
+                match eval_expr(scopes, std, &iter) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -212,7 +242,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
 
                         let new_bindings = vec![(lhs.clone(), entry)];
 
-                        let r = eval_stmts(scopes, new_bindings, &stmts);
+                        let r = eval_stmts(scopes, new_bindings, std, &stmts);
                         if let Err(e) = r {
                             return Err(e);
                         }
@@ -230,7 +260,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
 
                         let new_bindings = vec![(lhs.clone(), entry)];
 
-                        let r = eval_stmts(scopes, new_bindings, &stmts);
+                        let r = eval_stmts(scopes, new_bindings, std, &stmts);
                         if let Err(e) = r {
                             return Err(e);
                         }
@@ -263,7 +293,7 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
 
         Stmt::Return{expr} => {
             let v =
-                match eval_expr(scopes, expr) {
+                match eval_expr(scopes, std, expr) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -277,14 +307,21 @@ fn eval_stmt(scopes: &mut ScopeStack, stmt: &Stmt)
     Ok(None)
 }
 
-fn bind(scopes: &mut ScopeStack, lhs: Expr, rhs: ValRefWithSource, bt: BindType)
+fn bind(
+    scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
+    lhs: Expr,
+    rhs: ValRefWithSource,
+    bt: BindType,
+)
     -> Result<(),String>
 {
-    bind_(scopes, &mut HashSet::new(), lhs, rhs, bt)
+    bind_(scopes, std, &mut HashSet::new(), lhs, rhs, bt)
 }
 
 fn bind_(
     scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
     already_declared: &mut HashSet<String>,
     lhs: Expr,
     rhs: ValRefWithSource,
@@ -301,7 +338,7 @@ fn bind_(
             match &(*rhs.lock().unwrap()).v {
                 Value::List{xs: ys} => {
                     // TODO Investigate removing the call to `to_vec()`.
-                    bind_list(scopes, already_declared, xs, ys.to_vec(), bt)
+                    bind_list(scopes, std, already_declared, xs, ys.to_vec(), bt)
                 },
                 _ => {
                     Err(format!("can't destructure non-list into list"))
@@ -310,11 +347,11 @@ fn bind_(
         },
 
         Expr::Index{expr, location} => {
-            match eval_expr(scopes, &expr) {
+            match eval_expr(scopes, std, &expr) {
                 Ok(value) => {
                     match &mut (*value.lock().unwrap()).v {
                         Value::List{xs} => {
-                            match eval_expr(scopes, &location) {
+                            match eval_expr(scopes, std, &location) {
                                 Ok(index) => {
                                     match &(*index.lock().unwrap()).v {
                                         Value::Int{n} => {
@@ -332,7 +369,7 @@ fn bind_(
                         },
 
                         Value::Object{props} => {
-                            match eval_expr(scopes, &location) {
+                            match eval_expr(scopes, std, &location) {
                                 Ok(index) => {
                                     match &(*index.lock().unwrap()).v {
                                         Value::Str{s} => {
@@ -357,7 +394,7 @@ fn bind_(
         },
 
         Expr::Prop{expr, name} => {
-            match eval_expr(scopes, &expr) {
+            match eval_expr(scopes, std, &expr) {
                 Ok(value) => {
                     match &mut (*value.lock().unwrap()).v {
                         Value::Object{props} => props.insert(name, rhs),
@@ -373,7 +410,7 @@ fn bind_(
         Expr::Object{props: lhs_props} => {
             match &(*rhs.lock().unwrap()).v {
                 Value::Object{props: rhs_props} => {
-                    bind_object(scopes, already_declared, lhs_props, rhs_props.clone(), bt)
+                    bind_object(scopes, std, already_declared, lhs_props, rhs_props.clone(), bt)
                 },
                 _ => {
                     Err(format!("can't destructure non-object into object"))
@@ -405,7 +442,12 @@ enum BindType {
     VarDeclaration,
 }
 
-fn bind_name(scopes: &mut ScopeStack, name: String, rhs: ValRefWithSource, bind_type: BindType)
+fn bind_name(
+    scopes: &mut ScopeStack,
+    name: String,
+    rhs: ValRefWithSource,
+    bind_type: BindType,
+)
     -> Result<(),String>
 {
     bind_name_(scopes, &mut HashSet::new(), name, rhs, bind_type)
@@ -445,6 +487,7 @@ fn bind_name_(
 
 fn bind_list(
     scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<ListItem>,
     rhs: Vec<ValRefWithSource>,
@@ -461,13 +504,14 @@ fn bind_list(
 
     let ListItem{is_unspread, ..} = lhs[lhs.len()-1];
     if is_unspread {
-        return bind_unspread_list(scopes, &mut already_declared, lhs, rhs, bt);
+        return bind_unspread_list(scopes, std, &mut already_declared, lhs, rhs, bt);
     }
-    return bind_exact_list(scopes, &mut already_declared, lhs, rhs, bt);
+    return bind_exact_list(scopes, std, &mut already_declared, lhs, rhs, bt);
 }
 
 fn bind_unspread_list(
     scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
     mut already_declared: &mut HashSet<String>,
     mut lhs: Vec<ListItem>,
     mut rhs: Vec<ValRefWithSource>,
@@ -492,7 +536,7 @@ fn bind_unspread_list(
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = bind_(scopes, &mut already_declared, expr, rhs, bt) {
+        if let Err(e) = bind_(scopes, std, &mut already_declared, expr, rhs, bt) {
             return Err(e);
         }
     }
@@ -509,6 +553,7 @@ fn bind_unspread_list(
 
 fn bind_exact_list(
     scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<ListItem>,
     rhs: Vec<ValRefWithSource>,
@@ -525,7 +570,7 @@ fn bind_exact_list(
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = bind_(scopes, &mut already_declared, expr, rhs, bt) {
+        if let Err(e) = bind_(scopes, std, &mut already_declared, expr, rhs, bt) {
             return Err(e);
         }
     }
@@ -535,6 +580,7 @@ fn bind_exact_list(
 
 fn bind_object(
     scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<PropItem>,
     rhs: HashMap<String,ValRefWithSource>,
@@ -577,7 +623,7 @@ fn bind_object(
 
                         let lhs = Expr::Var{name: name.clone()};
                         let new_rhs = new_val_ref(Value::Object{props});
-                        if let Err(e) = bind_(scopes, &mut already_declared, lhs, new_rhs, bt) {
+                        if let Err(e) = bind_(scopes, std, &mut already_declared, lhs, new_rhs, bt) {
                             return Err(format!("couldn't bind '{}': {}", name, e));
                         }
                     } else {
@@ -587,7 +633,7 @@ fn bind_object(
                     rhs_keys.remove(&name);
 
                     let item_name = Expr::Str{s: name.clone()};
-                    let result = bind_object_pair(scopes, &mut already_declared, expr, &rhs, &item_name, bt);
+                    let result = bind_object_pair(scopes, std, &mut already_declared, expr, &rhs, &item_name, bt);
                     if let Err(e) = result {
                         return Err(format!("couldn't bind object pair '{}': {}", name, e));
                     }
@@ -595,7 +641,7 @@ fn bind_object(
             },
             PropItem::Pair{name, value: new_lhs} => {
                 let prop_name =
-                    match eval_expr(scopes, &name) {
+                    match eval_expr(scopes, std, &name) {
                         Ok(v) => {
                             match &(*v.lock().unwrap()).v {
                                 Value::Str{s} => s.clone(),
@@ -609,7 +655,7 @@ fn bind_object(
 
                 rhs_keys.remove(&prop_name);
 
-                let result = bind_object_pair(scopes, already_declared, new_lhs, &rhs, &name, bt);
+                let result = bind_object_pair(scopes, std, already_declared, new_lhs, &rhs, &name, bt);
                 if let Err(e) = result {
                     return Err(format!("couldn't bind object pair '{}': {}", prop_name, e));
                 }
@@ -624,6 +670,7 @@ fn bind_object(
 // isn't very clear at present, and should be clarified when possible.
 fn bind_object_pair(
     scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
     mut already_declared: &mut HashSet<String>,
     lhs: Expr,
     rhs: &HashMap<String,ValRefWithSource>,
@@ -633,7 +680,7 @@ fn bind_object_pair(
     -> Result<(),String>
 {
     let name =
-        match eval_expr(scopes, item_name) {
+        match eval_expr(scopes, std, item_name) {
             Ok(v) => {
                 match &(*v.lock().unwrap()).v {
                     Value::Str{s} => s.clone(),
@@ -651,14 +698,18 @@ fn bind_object_pair(
             None => return Err(format!("property '{}' not found in source object", name)),
         };
 
-    if let Err(e) = bind_(scopes, &mut already_declared, lhs, new_rhs, bt) {
+    if let Err(e) = bind_(scopes, std, &mut already_declared, lhs, new_rhs, bt) {
         return Err(format!("couldn't bind '{}': {}", name, e));
     }
 
     Ok(())
 }
 
-fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,String> {
+fn eval_expr(
+    scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
+    expr: &Expr,
+) -> Result<ValRefWithSource,String> {
     match expr {
         Expr::Null => Ok(new_val_ref(Value::Null)),
 
@@ -673,7 +724,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
             for item in xs {
                 let v =
-                    match eval_expr(scopes, &item.expr) {
+                    match eval_expr(scopes, std, &item.expr) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -700,7 +751,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
         Expr::Range{start, end} => {
             let start =
-                match eval_expr(scopes, start) {
+                match eval_expr(scopes, std, start) {
                     Ok(v) => {
                         match (*v.lock().unwrap()).v {
                             Value::Int{n} => n,
@@ -713,7 +764,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                 };
 
             let end =
-                match eval_expr(scopes, end) {
+                match eval_expr(scopes, std, end) {
                     Ok(v) => {
                         match (*v.lock().unwrap()).v {
                             Value::Int{n} => n,
@@ -734,11 +785,11 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
         },
 
         Expr::Index{expr, location} => {
-            match eval_expr(scopes, expr) {
+            match eval_expr(scopes, std, expr) {
                 Ok(source) => {
                     match &(*source.lock().unwrap()).v {
                         Value::List{xs} => {
-                            match eval_expr(scopes, location) {
+                            match eval_expr(scopes, std, location) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
                                         Value::Int{n} => {
@@ -757,7 +808,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                         },
 
                         Value::Object{props} => {
-                            match eval_expr(scopes, location) {
+                            match eval_expr(scopes, std, location) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
                                         Value::Str{s: name} => {
@@ -793,17 +844,17 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
         },
 
         Expr::IndexRange{expr, start: maybe_start, end: maybe_end} => {
-            match eval_expr(scopes, expr) {
+            match eval_expr(scopes, std, expr) {
                 Ok(source) => {
                     match &(*source.lock().unwrap()).v {
                         Value::List{xs} => {
                             if let Some(start) = maybe_start {
-                                match eval_expr(scopes, start) {
+                                match eval_expr(scopes, std, start) {
                                     Ok(v) => {
                                         match &(*v.lock().unwrap()).v {
                                             Value::Int{n: start} => {
                                                 if let Some(end) = maybe_end {
-                                                    match eval_expr(scopes, end) {
+                                                    match eval_expr(scopes, std, end) {
                                                         Ok(v) => {
                                                             match &(*v.lock().unwrap()).v {
                                                                 Value::Int{n: end} => {
@@ -834,7 +885,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                             }
 
                             if let Some(end) = maybe_end {
-                                match eval_expr(scopes, end) {
+                                match eval_expr(scopes, std, end) {
                                     Ok(v) => {
                                         match &(*v.lock().unwrap()).v {
                                             Value::Int{n: end} => {
@@ -861,7 +912,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
         },
 
         Expr::Prop{expr, name} => {
-            match eval_expr(scopes, expr) {
+            match eval_expr(scopes, std, expr) {
                 Ok(object) => {
                     match &(*object.lock().unwrap()).v {
                         Value::Object{props} => {
@@ -890,7 +941,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
         },
 
         Expr::Subcommand{expr, name} => {
-            match eval_expr(scopes, expr) {
+            match eval_expr(scopes, std, expr) {
                 Ok(object) => {
                     match &(*object.lock().unwrap()).v {
                         Value::Str{s} => {
@@ -926,7 +977,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                 match prop {
                     PropItem::Pair{name, value} => {
                         let k =
-                            match eval_expr(scopes, &name) {
+                            match eval_expr(scopes, std, &name) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
                                         Value::Str{s} => s.clone(),
@@ -939,7 +990,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                             };
 
                         let v =
-                            match eval_expr(scopes, &value) {
+                            match eval_expr(scopes, std, &value) {
                                 Ok(v) => v,
                                 Err(e) => return Err(e),
                             };
@@ -953,7 +1004,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
                         if *is_spread {
                             let v =
-                                match eval_expr(scopes, &expr) {
+                                match eval_expr(scopes, std, &expr) {
                                     Ok(v) => v,
                                     Err(e) => return Err(e),
                                 };
@@ -992,7 +1043,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
         Expr::UnaryOp{op, expr} => {
             let v =
-                match eval_expr(scopes, &*expr) {
+                match eval_expr(scopes, std, &*expr) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -1011,7 +1062,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
             let mut vals = vec![];
             for expr in exprs {
-                match eval_expr(scopes, &*expr) {
+                match eval_expr(scopes, std, &*expr) {
                     Ok(v) => vals.push(v),
                     Err(e) => return Err(e),
                 }
@@ -1047,13 +1098,13 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
         Expr::Call{expr, args} => {
             let vals =
-                match eval_exprs(scopes, &args) {
+                match eval_exprs(scopes, std, &args) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
             let v =
-                match eval_expr(scopes, &expr) {
+                match eval_expr(scopes, std, &expr) {
                     Ok(value) => {
                         let ValWithSource{v, source} = &*value.lock().unwrap();
                         match v {
@@ -1106,7 +1157,12 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                     },
 
                     CallBinding::Func{bindings, closure, stmts} => {
-                        let r = eval_stmts(&mut closure.clone(), bindings, &stmts);
+                        let r = eval_stmts(
+                            &mut closure.clone(),
+                            bindings,
+                            std,
+                            &stmts,
+                        );
 
                         match r {
                             Ok(ret_val) => {
@@ -1127,13 +1183,13 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
 
         Expr::Spawn{expr, args} => {
             let vals =
-                match eval_exprs(scopes, &args) {
+                match eval_exprs(scopes, std, &args) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
             let (prog, args) =
-                match eval_expr(scopes, &expr) {
+                match eval_expr(scopes, std, &expr) {
                     Ok(value) => {
                         let ValWithSource{v, ..} = &*value.lock().unwrap();
                         match v {
@@ -1246,13 +1302,17 @@ fn get_index_range(
     Err(format!("index out of bounds"))
 }
 
-pub fn eval_exprs(scopes: &mut ScopeStack, exprs: &Vec<Expr>)
+pub fn eval_exprs(
+    scopes: &mut ScopeStack,
+    std: &HashMap<String, ValRefWithSource>,
+    exprs: &Vec<Expr>,
+)
     -> Result<Vec<ValRefWithSource>,String>
 {
     let mut vals = vec![];
 
     for expr in exprs {
-        match eval_expr(scopes, &expr) {
+        match eval_expr(scopes, std, &expr) {
             Ok(v) => vals.push(v),
             Err(e) => return Err(e),
         }

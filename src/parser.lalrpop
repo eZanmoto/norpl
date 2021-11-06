@@ -13,6 +13,8 @@ pub Prog: Prog = {
 pub Stmt: Stmt = {
     <expr:Expr> ";" => Stmt::Expr{expr},
 
+    "import" <name:QuotedStrLiteral> ";" => Stmt::Import{name},
+
     "let" <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Var},
     "const" <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Const},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
@@ -204,9 +206,13 @@ Ident: String = {
 };
 
 StrLiteral: String = {
-    <s:r"'[^']*'"> => s.trim_matches('\'').to_string(),
+    <s:QuotedStrLiteral> => s,
     <s:r"[_a-zA-Z\-][_a-zA-Z0-9\-]*"> => s.to_string(),
 };
+
+QuotedStrLiteral: String = {
+    <s:r"'[^']*'"> => s.trim_matches('\'').to_string(),
+}
 
 IntLiteral: i64 = {
     <s:r"[0-9]+"> => s.parse().unwrap(),

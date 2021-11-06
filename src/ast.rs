@@ -11,6 +11,8 @@ pub type Block = Vec<Stmt>;
 
 #[derive(Clone,Debug)]
 pub enum Stmt {
+    Import{name: String},
+
     Declare{lhs: Expr, rhs: Expr, dt: DeclarationType},
     Assign{lhs: Expr, rhs: Expr},
     OpAssign{lhs: Expr, op: BinaryOp, rhs: Expr},

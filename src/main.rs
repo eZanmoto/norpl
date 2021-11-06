@@ -2,9 +2,12 @@
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
+use std::array::IntoIter;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::iter::FromIterator;
 
 mod ast;
 mod eval;
@@ -34,15 +37,26 @@ fn main() {
         (Expr::Var{name: "type".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: type_})),
     ];
 
+    let std = HashMap::<_, _>::from_iter(IntoIter::new([
+        (
+            "proc".to_string(),
+            eval::new_val_ref(Value::Object{
+                props: HashMap::<_, _>::from_iter(IntoIter::new([
+                    ("env".to_string(), eval::new_val_ref(Value::Int{n: 1})),
+                ])),
+            }),
+        ),
+    ]));
+
     let mut scopes = ScopeStack::new(vec![]);
     let ast = ProgParser::new().parse(&test).unwrap();
-    let result = eval::eval_prog(&mut scopes, global_bindings, &ast);
+    let result = eval::eval_prog(&mut scopes, global_bindings, &std, &ast);
 
     println!("{:?}", result);
 }
 
 fn read_test() -> String {
-    let f = File::open("src/test.txt").unwrap();
+    let f = File::open("src/docker_get.lrl").unwrap();
     let lines = BufReader::new(f).lines();
     let mut test = String::new();
 
