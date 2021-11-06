@@ -107,8 +107,11 @@ pub Application: Expr = {
     <expr:Application> ":(" <args:ParamList> ")" =>
         Expr::Spawn{expr: Box::new(expr), args: args},
 
+    <expr:Application> ".[" <location:Expr> "]" =>
+        Expr::Index{expr: Box::new(expr), location: Box::new(location), safe: true},
+
     <expr:Application> "[" <location:Expr> "]" =>
-        Expr::Index{expr: Box::new(expr), location: Box::new(location)},
+        Expr::Index{expr: Box::new(expr), location: Box::new(location), safe: false},
 
     <expr:Application> "[" <start:Expr?> ":" <end:Expr?> "]" =>
         Expr::IndexRange{

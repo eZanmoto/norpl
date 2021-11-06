@@ -2,12 +2,8 @@ import 'proc';
 
 let $script_commit_sha = '93d2499759296ac1f9c510605fef85052a2c32be';
 
-$print($proc);
-
-# let [$version, $ok] = $proc.env.['VERSION'];
-# if !$ok {
-#     $version = '';
-# }
-
-# VERSION="${VERSION#v}"
-# TODO Handle the case where `VERSION` isn't defined.
+let [$version, $ok] = $proc.env.[VERSION];
+if !$ok {
+    $version = '';
+}
+$print($version);
