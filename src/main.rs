@@ -4,6 +4,7 @@
 
 use std::array::IntoIter;
 use std::collections::HashMap;
+use std::env;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -42,7 +43,12 @@ fn main() {
             "proc".to_string(),
             eval::new_val_ref(Value::Object{
                 props: HashMap::<_, _>::from_iter(IntoIter::new([
-                    ("env".to_string(), eval::new_val_ref(Value::Int{n: 1})),
+                    ("env".to_string(), eval::new_val_ref(Value::Object{
+                        props: HashMap::<_, _>::from_iter(
+                            env::vars()
+                                .map(|(k, v)| (k, eval::new_val_ref(Value::Str{s: v}))),
+                        ),
+                    })),
                 ])),
             }),
         ),
