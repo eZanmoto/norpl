@@ -117,7 +117,7 @@ pub Application: Expr = {
             end: end.map(|v| Box::new(v)),
         },
 
-    <expr:Application> "." <name:Ident> =>
+    <expr:Application> "." <name:UnquotedStrLiteral> =>
         Expr::Prop{expr: Box::new(expr), name},
 
     <expr:Application> "::" <name:StrLiteral> =>
@@ -207,11 +207,15 @@ Ident: String = {
 
 StrLiteral: String = {
     <s:QuotedStrLiteral> => s,
-    <s:r"[_a-zA-Z\-][_a-zA-Z0-9\-]*"> => s.to_string(),
+    <s:UnquotedStrLiteral> => s,
 };
 
 QuotedStrLiteral: String = {
     <s:r"'[^']*'"> => s.trim_matches('\'').to_string(),
+}
+
+UnquotedStrLiteral: String = {
+    <s:r"[_a-zA-Z][_a-zA-Z0-9]*"> => s.to_string(),
 }
 
 IntLiteral: i64 = {
