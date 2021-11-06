@@ -102,6 +102,9 @@ pub Application: Expr = {
     <expr:Application> "(" <args:ParamList> ")" =>
         Expr::Call{expr: Box::new(expr), args: args},
 
+    <expr:Application> ":(" <args:ParamList> ")" =>
+        Expr::Spawn{expr: Box::new(expr), args: args},
+
     <expr:Application> "[" <location:Expr> "]" =>
         Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 

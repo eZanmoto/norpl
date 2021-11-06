@@ -61,6 +61,7 @@ pub enum Expr {
 
     Func{args: Vec<Expr>, stmts: Block},
     Call{expr: Box<Expr>, args: Vec<Expr>},
+    Spawn{expr: Box<Expr>, args: Vec<Expr>},
 }
 
 #[derive(Clone,Debug)]

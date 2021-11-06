@@ -394,6 +394,7 @@ fn bind_(
         Expr::BinaryOp{..} => return Err(format!("cannot bind to a binary operation")),
         Expr::Func{..} => return Err(format!("cannot bind to a function literal")),
         Expr::Call{..} => return Err(format!("cannot bind to a function call")),
+        Expr::Spawn{..} => return Err(format!("cannot bind to a command spawn")),
     }
 }
 
@@ -1089,37 +1090,7 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                                 }
                             },
 
-                            Value::Str{s: prog} => {
-                                let mut args = vec![];
-                                for val in vals {
-                                    match &(*val.lock().unwrap()).v {
-                                        Value::Str{s} => args.push(s.clone()),
-                                        _ => return Err(format!("program arguments must be strings")),
-                                    }
-                                }
-
-                                CallBinding::Command{
-                                    prog: prog.clone(),
-                                    args,
-                                }
-                            },
-
-                            Value::Command{prog, args} => {
-                                let mut args_ = args.clone();
-                                for val in vals {
-                                    match &(*val.lock().unwrap()).v {
-                                        Value::Str{s} => args_.push(s.clone()),
-                                        _ => return Err(format!("program arguments must be strings")),
-                                    }
-                                }
-
-                                CallBinding::Command{
-                                    prog: prog.clone(),
-                                    args: args_,
-                                }
-                            },
-
-                            _ => return Err(format!("can only call functions or strings")),
+                            _ => return Err(format!("can only call functions")),
                         }
                     },
                     Err(e) => return Err(e),
@@ -1149,46 +1120,87 @@ fn eval_expr(scopes: &mut ScopeStack, expr: &Expr) -> Result<ValRefWithSource,St
                             },
                         }
                     },
-
-                    CallBinding::Command{prog, args} => {
-                        let mut cmd = Command::new(prog);
-                        cmd.args(args);
-
-                        match cmd.output() {
-                            Ok(output) => {
-                                let mut props = HashMap::new();
-
-                                let exit_code =
-                                    match output.status.code() {
-                                        Some(c) => c as i64,
-                                        None => return Err(format!("process didn't return exit code")),
-                                    };
-                                props.insert("exit_code".to_string(), new_val_ref(Value::Int{n: exit_code}));
-
-                                let stdout =
-                                    match str::from_utf8(&output.stdout) {
-                                        Ok(s) => s.to_string(),
-                                        Err(e) => return Err(format!("couldn't parse STDOUT as UTF-8: {:?}", e)),
-                                    };
-                                props.insert("stdout".to_string(), new_val_ref(Value::Str{s: stdout}));
-
-                                let stderr =
-                                    match str::from_utf8(&output.stderr) {
-                                        Ok(s) => s.to_string(),
-                                        Err(e) => return Err(format!("couldn't parse STDERR as UTF-8: {:?}", e)),
-                                    };
-                                props.insert("stderr".to_string(), new_val_ref(Value::Str{s: stderr}));
-
-                                new_val_ref(Value::Object{props})
-                            },
-                            Err(e) => {
-                                return Err(format!("process failed: {:?}", e));
-                            },
-                        }
-                    },
                 };
 
             Ok(v)
+        },
+
+        Expr::Spawn{expr, args} => {
+            let vals =
+                match eval_exprs(scopes, &args) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
+
+            let (prog, args) =
+                match eval_expr(scopes, &expr) {
+                    Ok(value) => {
+                        let ValWithSource{v, ..} = &*value.lock().unwrap();
+                        match v {
+                            Value::Str{s: prog} => {
+                                let mut args = vec![];
+                                for val in vals {
+                                    match &(*val.lock().unwrap()).v {
+                                        Value::Str{s} => args.push(s.clone()),
+                                        _ => return Err(format!("program arguments must be strings")),
+                                    }
+                                }
+
+                                (prog.clone(), args)
+                            },
+
+                            Value::Command{prog, args} => {
+                                let mut args_ = args.clone();
+                                for val in vals {
+                                    match &(*val.lock().unwrap()).v {
+                                        Value::Str{s} => args_.push(s.clone()),
+                                        _ => return Err(format!("program arguments must be strings")),
+                                    }
+                                }
+
+                                (prog.clone(), args_)
+                            },
+
+                            _ => return Err(format!("can only spawn strings or commands")),
+                        }
+                    },
+                    Err(e) => return Err(e),
+                };
+
+            let mut cmd = Command::new(prog);
+            cmd.args(args);
+
+            match cmd.output() {
+                Ok(output) => {
+                    let mut props = HashMap::new();
+
+                    let exit_code =
+                        match output.status.code() {
+                            Some(c) => c as i64,
+                            None => return Err(format!("process didn't return exit code")),
+                        };
+                    props.insert("exit_code".to_string(), new_val_ref(Value::Int{n: exit_code}));
+
+                    let stdout =
+                        match str::from_utf8(&output.stdout) {
+                            Ok(s) => s.to_string(),
+                            Err(e) => return Err(format!("couldn't parse STDOUT as UTF-8: {:?}", e)),
+                        };
+                    props.insert("stdout".to_string(), new_val_ref(Value::Str{s: stdout}));
+
+                    let stderr =
+                        match str::from_utf8(&output.stderr) {
+                            Ok(s) => s.to_string(),
+                            Err(e) => return Err(format!("couldn't parse STDERR as UTF-8: {:?}", e)),
+                        };
+                    props.insert("stderr".to_string(), new_val_ref(Value::Str{s: stderr}));
+
+                    Ok(new_val_ref(Value::Object{props}))
+                },
+                Err(e) => {
+                    return Err(format!("process failed: {:?}", e));
+                },
+            }
         },
 
         Expr::Func{args, stmts} => {
@@ -1213,10 +1225,6 @@ enum CallBinding {
         bindings: Vec<(Expr, ValRefWithSource)>,
         closure: ScopeStack,
         stmts: Block,
-    },
-    Command{
-        prog: String,
-        args: Vec<String>,
     },
 }
 
