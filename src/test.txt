@@ -1,1 +1,3 @@
-$print(git.remote.remove(x));
+let $python = 'python3';
+
+$print($python::'_test.py'());
