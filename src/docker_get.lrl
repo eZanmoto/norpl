@@ -9,11 +9,21 @@ fn $main() {
     let $repo_file = $env_or(DEFAULT_REPO_FILE, 'docker-ce.repo');
 
     let $args = $parse_args();
-    $print($args);
+
+    $download_url = $download_url_from_mirror($args.mirror, $download_url);
+    $print($download_url);
+}
+
+fn $env_or($name, $default) {
+    let [$v, $ok] = $proc.env.[$name];
+    if $ok {
+        return $v;
+    }
+    return $default;
 }
 
 fn $parse_args() {
-    let $args = {};
+    let $args = {mirror: ''};
 
     let $i = 0;
     while $i < $proc.args->len() {
@@ -35,12 +45,14 @@ fn $parse_args() {
     return $args;
 }
 
-fn $env_or($name, $default) {
-    let [$v, $ok] = $proc.env.[$name];
-    if $ok {
-        return $v;
+fn $download_url_from_mirror($mirror, $default) {
+    if $mirror == 'Aliyun' {
+        return 'https://mirrors.aliyun.com/docker-ce';
+    } else if $mirror == 'AzureChinaCloud' {
+        return 'https://mirror.azure.cn/docker-ce';
+    } else {
+        return $default;
     }
-    return $default;
 }
 
 $main();

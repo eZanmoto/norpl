@@ -63,7 +63,7 @@ fn main() {
                             eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
                             eval::new_val_ref(Value::Str{s: "abc".to_string()}),
                             eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "123".to_string()}),
+                            eval::new_val_ref(Value::Str{s: "Aliyun".to_string()}),
                         ]},
                     )),
                 ])),
