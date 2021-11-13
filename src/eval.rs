@@ -868,7 +868,7 @@ fn eval_expr(
                                                         ));
                                                     },
                                                     None => {
-                                                        return Err(format!("property name not found"));
+                                                        return Err(format!("property name '{}' not found", name));
                                                     },
                                                 };
                                             }
@@ -983,7 +983,7 @@ fn eval_expr(
                                 ))
                             },
                             None => {
-                                Err(format!("property name not found"))
+                                Err(format!("property name '{}' not found", name))
                             },
                         }
                     } else {
@@ -999,7 +999,7 @@ fn eval_expr(
                                         ))
                                     },
                                     None => {
-                                        return Err(format!("property name not found"));
+                                        Err(format!("property name '{}' not found", name))
                                     },
                                 }
                             },

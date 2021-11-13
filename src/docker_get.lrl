@@ -1,17 +1,46 @@
 import 'proc';
 
-let $script_commit_sha = '93d2499759296ac1f9c510605fef85052a2c32be';
+fn $main() {
+    let $script_commit_sha = '93d2499759296ac1f9c510605fef85052a2c32be';
 
-let [$version, $ok] = $proc.env.[VERSION];
-if !$ok {
-    $version = '';
+    let $version = $env_or(VERSION, '')->strip_prefix('v');
+    let $channel = $env_or(DEFAULT_CHANNEL_VALUE, 'stable');
+    let $download_url = $env_or(DEFAULT_DOWNLOAD_URL, 'https://download.docker.com');
+    let $repo_file = $env_or(DEFAULT_REPO_FILE, 'docker-ce.repo');
+
+    let $args = $parse_args();
+    $print($args);
 }
-$print($version);
 
-$version = $version->strip_prefix('v');
-$print($version);
-# VERSION="${VERSION#v}"
+fn $parse_args() {
+    let $args = {};
 
-# --- 0. Implement prototype namespace for strings
-# 1. Add support for Expr::PrototypeCall
-# --- 2. Implement strip prefix
+    let $i = 0;
+    while $i < $proc.args->len() {
+        let $arg = $proc.args[$i];
+
+        if $arg == '--mirror' {
+            $args.mirror = $proc.args[$i + 1];
+
+            $i += 1;
+        } else if $arg == '--dry-run' {
+            $args.dry_run = true;
+        } else if $arg->starts_with('--') {
+            $panic('illegal option ' + $arg);
+        }
+
+        $i += 1;
+    }
+
+    return $args;
+}
+
+fn $env_or($name, $default) {
+    let [$v, $ok] = $proc.env.[$name];
+    if $ok {
+        return $v;
+    }
+    return $default;
+}
+
+$main();

@@ -35,6 +35,7 @@ fn main() {
     let test = read_test();
 
     let global_bindings = vec![
+        (Expr::Var{name: "panic".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: panic_})),
         (Expr::Var{name: "print".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: print_})),
         (Expr::Var{name: "len".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: len_})),
         (Expr::Var{name: "type".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: type_})),
@@ -45,12 +46,26 @@ fn main() {
             "proc".to_string(),
             eval::new_val_ref(Value::Object{
                 props: HashMap::<_, _>::from_iter(IntoIter::new([
-                    ("env".to_string(), eval::new_val_ref(Value::Object{
-                        props: HashMap::<_, _>::from_iter(
-                            env::vars()
-                                .map(|(k, v)| (k, eval::new_val_ref(Value::Str{s: v}))),
-                        ),
-                    })),
+                    (
+                        "env".to_string(),
+                        eval::new_val_ref(Value::Object{
+                            props: HashMap::<_, _>::from_iter(
+                                env::vars()
+                                    .map(|(k, v)| (k, eval::new_val_ref(Value::Str{s: v}))),
+                            ),
+                        },
+                    )),
+
+                    (
+                        "args".to_string(),
+                        eval::new_val_ref(Value::List{xs: vec![
+                            eval::new_val_ref(Value::Str{s: "--dry-run".to_string()}),
+                            eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
+                            eval::new_val_ref(Value::Str{s: "abc".to_string()}),
+                            eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
+                            eval::new_val_ref(Value::Str{s: "123".to_string()}),
+                        ]},
+                    )),
                 ])),
             }),
         ),
@@ -65,9 +80,19 @@ fn main() {
                 "strip_prefix".to_string(),
                 eval::new_val_ref(Value::BuiltInFunc{f: strip_prefix_}),
             ),
+            (
+                "starts_with".to_string(),
+                eval::new_val_ref(Value::BuiltInFunc{f: starts_with_}),
+            ),
         ])),
 
-        lists: HashMap::<String, ValRefWithSource>::new(),
+        lists: HashMap::<_, _>::from_iter(IntoIter::new([
+            (
+                "len".to_string(),
+                eval::new_val_ref(Value::BuiltInFunc{f: list_len_}),
+            ),
+        ])),
+
         objects: HashMap::<String, ValRefWithSource>::new(),
         funcs: HashMap::<String, ValRefWithSource>::new(),
         commands: HashMap::<String, ValRefWithSource>::new(),
@@ -95,6 +120,20 @@ fn read_test() -> String {
     }
 
     test
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn panic_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+    // TODO Handle out-of-bounds access.
+    match &(*vs[0].lock().unwrap()).v {
+        Value::Str{s} => {
+            Err(s.to_string())
+        },
+        _ => {
+            Err(format!("can only call `panic` on strings"))
+        },
+    }
 }
 
 // NOCOMMIT Resolve Clippy issues.
@@ -211,6 +250,46 @@ fn strip_prefix_(this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> R
         }
         _ => {
             Err(format!("can only call `strip_prefix` on strings"))
+        },
+    }
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn starts_with_(this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+    // TODO Handle `unwrap` on a "none" `this`.
+    // TODO Handle out-of-bounds access.
+    match &(*this.unwrap().lock().unwrap()).v {
+        Value::Str{s} => {
+            match &(*vs[0].lock().unwrap()).v {
+                Value::Str{s: prefix} => {
+                    Ok(eval::new_val_ref(Value::Bool{b: s.starts_with(prefix)}))
+                },
+                _ => {
+                    Err(format!("the first argument to `starts_with` must be a string"))
+                },
+            }
+        }
+        _ => {
+            Err(format!("dev error: `starts_with_` called on non-string"))
+        },
+    }
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn list_len_(this: Option<ValRefWithSource>, _vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+    // TODO Handle `unwrap` on a "none" `this`.
+    match &(*this.unwrap().lock().unwrap()).v {
+        Value::List{xs} => {
+            // TODO Investigate casting `usize` to `i64`.
+            let n = Value::Int{n: xs.len() as i64};
+
+            Ok(eval::new_val_ref(n))
+        },
+        _ => {
+            // TODO Consider whether to use a `panic!` here.
+            Err(format!("dev error: `list_len_` called on non-list"))
         },
     }
 }
