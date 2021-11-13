@@ -7,3 +7,11 @@ if !$ok {
     $version = '';
 }
 $print($version);
+
+$version = $version->strip_prefix('v');
+$print($version);
+# VERSION="${VERSION#v}"
+
+# --- 0. Implement prototype namespace for strings
+# 1. Add support for Expr::PrototypeCall
+# --- 2. Implement strip prefix

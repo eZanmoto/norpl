@@ -14,6 +14,8 @@ mod ast;
 mod eval;
 
 use ast::Expr;
+use eval::Builtins;
+use eval::Prototypes;
 use eval::ScopeStack;
 use eval::ValRefWithSource;
 use eval::Value;
@@ -54,9 +56,31 @@ fn main() {
         ),
     ]));
 
+    let prototypes = Prototypes{
+        bools: HashMap::<String, ValRefWithSource>::new(),
+        ints: HashMap::<String, ValRefWithSource>::new(),
+
+        strs: HashMap::<_, _>::from_iter(IntoIter::new([
+            (
+                "strip_prefix".to_string(),
+                eval::new_val_ref(Value::BuiltInFunc{f: strip_prefix_}),
+            ),
+        ])),
+
+        lists: HashMap::<String, ValRefWithSource>::new(),
+        objects: HashMap::<String, ValRefWithSource>::new(),
+        funcs: HashMap::<String, ValRefWithSource>::new(),
+        commands: HashMap::<String, ValRefWithSource>::new(),
+    };
+
     let mut scopes = ScopeStack::new(vec![]);
     let ast = ProgParser::new().parse(&test).unwrap();
-    let result = eval::eval_prog(&mut scopes, global_bindings, &std, &ast);
+    let result = eval::eval_prog(
+        &mut scopes,
+        global_bindings,
+        &Builtins{std, prototypes},
+        &ast,
+    );
 
     println!("{:?}", result);
 }
@@ -75,7 +99,7 @@ fn read_test() -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn print_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn print_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Remove varargs support.
     println!("{}", render(vs[0].clone()));
 
@@ -128,7 +152,7 @@ fn render(v: ValRefWithSource) -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn len_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn len_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
         Value::List{xs} => {
@@ -145,7 +169,7 @@ fn len_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn type_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn type_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     let t =
         match &(*vs[0].lock().unwrap()).v {
@@ -161,4 +185,32 @@ fn type_(vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
         };
 
     Ok(eval::new_val_ref(Value::Str{s: t.to_string()}))
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn strip_prefix_(this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+    // TODO Handle `unwrap` on a "none" `this`.
+    // TODO Handle out-of-bounds access.
+    match &(*this.unwrap().lock().unwrap()).v {
+        Value::Str{s: unstripped} => {
+            match &(*vs[0].lock().unwrap()).v {
+                Value::Str{s: prefix} => {
+                    let stripped =
+                        match unstripped.strip_prefix(prefix) {
+                            Some(s) => s,
+                            None => unstripped,
+                        };
+
+                    Ok(eval::new_val_ref(Value::Str{s: stripped.to_string()}))
+                },
+                _ => {
+                    Err(format!("the first argument to `strip_prefix` must be a string"))
+                },
+            }
+        }
+        _ => {
+            Err(format!("can only call `strip_prefix` on strings"))
+        },
+    }
 }
