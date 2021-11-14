@@ -8,6 +8,7 @@ use std::process::Command;
 use std::str;
 
 mod value;
+mod builtins;
 
 use ast::*;
 pub use self::value::DeclType;
@@ -19,6 +20,8 @@ pub use self::value::ScopeStack;
 pub use self::value::ValRefWithSource;
 pub use self::value::Value;
 pub use self::value::ValWithSource;
+pub use self::builtins::Builtins;
+pub use self::builtins::Prototypes;
 
 pub fn eval_prog(
     scopes: &mut ScopeStack,
@@ -1479,45 +1482,4 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
         },
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),
     }
-}
-
-pub struct Prototypes {
-    pub bools: Object,
-    pub ints: Object,
-    pub strs: Object,
-    pub lists: Object,
-    pub objects: Object,
-    pub funcs: Object,
-    pub commands: Object,
-}
-
-impl Prototypes {
-    fn prototype_for(&self, v: &Value) -> Result<Object, String> {
-        let proto =
-            match v {
-                // TODO Use references instead of `clone()`s.
-
-                Value::Bool{..} => self.bools.clone(),
-                Value::Int{..} => self.ints.clone(),
-                Value::Str{..} => self.strs.clone(),
-                Value::List{..} => self.lists.clone(),
-                Value::Object{..} => self.objects.clone(),
-
-                Value::BuiltInFunc{..} => self.funcs.clone(),
-                Value::Func{..} => self.funcs.clone(),
-
-                Value::Command{..} => self.commands.clone(),
-
-                Value::Null => {
-                    return Err(format!("`null` doesn't have an associated prototype"));
-                },
-            };
-
-        Ok(proto)
-    }
-}
-
-pub struct Builtins {
-    pub std: Object,
-    pub prototypes: Prototypes,
 }
