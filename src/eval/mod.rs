@@ -22,6 +22,7 @@ pub use self::value::new_object;
 pub use self::value::new_str;
 pub use self::value::new_val_ref;
 pub use self::value::new_val_ref_with_source;
+pub use self::value::List;
 pub use self::value::Object;
 pub use self::value::Scope;
 pub use self::value::ScopeStack;
@@ -511,7 +512,7 @@ fn bind_list(
     builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<ListItem>,
-    rhs: Vec<ValRefWithSource>,
+    rhs: List,
     bt: BindType,
 )
     -> Result<(),String>
@@ -535,7 +536,7 @@ fn bind_unspread_list(
     builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     mut lhs: Vec<ListItem>,
-    mut rhs: Vec<ValRefWithSource>,
+    mut rhs: List,
     bt: BindType,
 )
     -> Result<(),String>
@@ -577,7 +578,7 @@ fn bind_exact_list(
     builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<ListItem>,
-    rhs: Vec<ValRefWithSource>,
+    rhs: List,
     bt: BindType,
 )
     -> Result<(),String>
@@ -1361,9 +1362,9 @@ fn eval_expr(
 
 enum CallBinding {
     BuiltInFunc{
-        f: fn(Option<ValRefWithSource>, Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>,
+        f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>,
         this: Option<ValRefWithSource>,
-        args: Vec<ValRefWithSource>,
+        args: List,
     },
     Func{
         bindings: Vec<(Expr, ValRefWithSource)>,
@@ -1373,7 +1374,7 @@ enum CallBinding {
 }
 
 fn get_index_range(
-    xs: &Vec<ValRefWithSource>,
+    xs: &List,
     mut maybe_start: Option<usize>,
     mut maybe_end: Option<usize>,
 )
@@ -1394,7 +1395,7 @@ pub fn eval_exprs(
     builtins: &Builtins,
     exprs: &Vec<Expr>,
 )
-    -> Result<Vec<ValRefWithSource>,String>
+    -> Result<List, String>
 {
     let mut vals = vec![];
 

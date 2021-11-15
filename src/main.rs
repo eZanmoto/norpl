@@ -16,6 +16,7 @@ mod prototypes;
 
 use ast::Expr;
 use eval::Builtins;
+use eval::List;
 use eval::ScopeStack;
 use eval::ValRefWithSource;
 use eval::Value;
@@ -95,7 +96,7 @@ fn read_test() -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn panic_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn panic_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
         Value::Str{s} => {
@@ -109,7 +110,7 @@ fn panic_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn print_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn print_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Remove varargs support.
     println!("{}", render(vs[0].clone()));
 
@@ -162,7 +163,7 @@ fn render(v: ValRefWithSource) -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn len_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn len_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
         Value::List{xs} => {
@@ -177,7 +178,7 @@ fn len_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<Va
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn type_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn type_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     let t =
         match &(*vs[0].lock().unwrap()).v {

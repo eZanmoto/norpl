@@ -42,10 +42,10 @@ pub enum Value {
     Bool{b: bool},
     Int{n: i64},
     Str{s: String},
-    List{xs: Vec<ValRefWithSource>},
+    List{xs: List},
     Object{props: Object},
 
-    BuiltInFunc{f: fn(Option<ValRefWithSource>, Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>},
+    BuiltInFunc{f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>},
     Func{args: Vec<Expr>, stmts: Block, closure: ScopeStack},
 
     Command{prog: String, args: Vec<String>},
@@ -128,6 +128,8 @@ impl ScopeStack {
     }
 }
 
+pub type List = Vec<ValRefWithSource>;
+
 pub type Object = HashMap<String, ValRefWithSource>;
 
 pub fn new_null() -> ValRefWithSource {
@@ -146,7 +148,7 @@ pub fn new_str(s: String) -> ValRefWithSource {
     new_val_ref(Value::Str{s})
 }
 
-pub fn new_list(xs: Vec<ValRefWithSource>) -> ValRefWithSource {
+pub fn new_list(xs: List) -> ValRefWithSource {
     new_val_ref(Value::List{xs})
 }
 
@@ -154,7 +156,7 @@ pub fn new_object(props: Object) -> ValRefWithSource {
     new_val_ref(Value::Object{props})
 }
 
-pub fn new_built_in_func(f: fn(Option<ValRefWithSource>, Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>)
+pub fn new_built_in_func(f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>)
     -> ValRefWithSource
 {
     new_val_ref(Value::BuiltInFunc{f})
