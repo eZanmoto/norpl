@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::iter::FromIterator;
 
 use super::eval;
+use super::eval::List;
 use super::eval::Prototypes;
 use super::eval::ValRefWithSource;
 use super::eval::Value;
@@ -42,7 +43,7 @@ pub fn prototypes() -> Prototypes {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn strip_prefix_(this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn strip_prefix_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
@@ -70,7 +71,7 @@ fn strip_prefix_(this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> R
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn starts_with_(this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
@@ -92,7 +93,7 @@ fn starts_with_(this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Re
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn list_len_(this: Option<ValRefWithSource>, _vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn list_len_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     match &(*this.unwrap().lock().unwrap()).v {
         Value::List{xs} => {
