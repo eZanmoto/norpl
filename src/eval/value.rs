@@ -129,3 +129,41 @@ impl ScopeStack {
 }
 
 pub type Object = HashMap<String, ValRefWithSource>;
+
+pub fn new_null() -> ValRefWithSource {
+    new_val_ref(Value::Null)
+}
+
+pub fn new_bool(b: bool) -> ValRefWithSource {
+    new_val_ref(Value::Bool{b})
+}
+
+pub fn new_int(n: i64) -> ValRefWithSource {
+    new_val_ref(Value::Int{n})
+}
+
+pub fn new_str(s: String) -> ValRefWithSource {
+    new_val_ref(Value::Str{s})
+}
+
+pub fn new_list(xs: Vec<ValRefWithSource>) -> ValRefWithSource {
+    new_val_ref(Value::List{xs})
+}
+
+pub fn new_object(props: Object) -> ValRefWithSource {
+    new_val_ref(Value::Object{props})
+}
+
+pub fn new_built_in_func(f: fn(Option<ValRefWithSource>, Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>)
+    -> ValRefWithSource
+{
+    new_val_ref(Value::BuiltInFunc{f})
+}
+
+pub fn new_func(args: Vec<Expr>, stmts: Block, closure: ScopeStack) -> ValRefWithSource {
+    new_val_ref(Value::Func{args, stmts, closure})
+}
+
+pub fn new_command(prog: String, args: Vec<String>) -> ValRefWithSource {
+    new_val_ref(Value::Command{prog, args})
+}
