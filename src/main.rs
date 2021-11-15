@@ -35,39 +35,35 @@ fn main() {
     let test = read_test();
 
     let global_bindings = vec![
-        (Expr::Var{name: "panic".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: panic_})),
-        (Expr::Var{name: "print".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: print_})),
-        (Expr::Var{name: "len".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: len_})),
-        (Expr::Var{name: "type".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: type_})),
+        (Expr::Var{name: "panic".to_string()}, eval::new_built_in_func(panic_)),
+        (Expr::Var{name: "print".to_string()}, eval::new_built_in_func(print_)),
+        (Expr::Var{name: "len".to_string()}, eval::new_built_in_func(len_)),
+        (Expr::Var{name: "type".to_string()}, eval::new_built_in_func(type_)),
     ];
 
     let std = HashMap::<_, _>::from_iter(IntoIter::new([
         (
             "proc".to_string(),
-            eval::new_val_ref(Value::Object{
-                props: HashMap::<_, _>::from_iter(IntoIter::new([
-                    (
-                        "env".to_string(),
-                        eval::new_val_ref(Value::Object{
-                            props: HashMap::<_, _>::from_iter(
-                                env::vars()
-                                    .map(|(k, v)| (k, eval::new_val_ref(Value::Str{s: v}))),
-                            ),
-                        },
+            eval::new_object(HashMap::<_, _>::from_iter(IntoIter::new([
+                (
+                    "env".to_string(),
+                    eval::new_object(HashMap::<_, _>::from_iter(
+                        env::vars()
+                            .map(|(k, v)| (k, eval::new_str(v))),
                     )),
+                ),
 
-                    (
-                        "args".to_string(),
-                        eval::new_val_ref(Value::List{xs: vec![
-                            eval::new_val_ref(Value::Str{s: "--dry-run".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "abc".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "Aliyun".to_string()}),
-                        ]},
-                    )),
-                ])),
-            }),
+                (
+                    "args".to_string(),
+                    eval::new_list(vec![
+                        eval::new_str("--dry-run".to_string()),
+                        eval::new_str("--mirror".to_string()),
+                        eval::new_str("abc".to_string()),
+                        eval::new_str("--mirror".to_string()),
+                        eval::new_str("Aliyun".to_string()),
+                    ]),
+                ),
+            ]))),
         ),
     ]));
 
@@ -117,7 +113,7 @@ fn print_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<
     // TODO Remove varargs support.
     println!("{}", render(vs[0].clone()));
 
-    Ok(eval::new_val_ref(Value::Null))
+    Ok(eval::new_null())
 }
 
 fn render(v: ValRefWithSource) -> String {
@@ -171,9 +167,7 @@ fn len_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<Va
     match &(*vs[0].lock().unwrap()).v {
         Value::List{xs} => {
             // TODO Investigate casting `usize` to `i64`.
-            let n = Value::Int{n: xs.len() as i64};
-
-            Ok(eval::new_val_ref(n))
+            Ok(eval::new_int(xs.len() as i64))
         },
         _ => {
             Err(format!("can only call `len` on lists"))
@@ -198,5 +192,5 @@ fn type_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<V
             Value::Command{..} => "cmd",
         };
 
-    Ok(eval::new_val_ref(Value::Str{s: t.to_string()}))
+    Ok(eval::new_str(t.to_string()))
 }
