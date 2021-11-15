@@ -40,7 +40,7 @@ pub enum Value {
     Null,
 
     Bool(bool),
-    Int{n: i64},
+    Int(i64),
     Str{s: String},
     List{xs: List},
     Object{props: Object},
@@ -141,7 +141,7 @@ pub fn new_bool(b: bool) -> ValRefWithSource {
 }
 
 pub fn new_int(n: i64) -> ValRefWithSource {
-    new_val_ref(Value::Int{n})
+    new_val_ref(Value::Int(n))
 }
 
 pub fn new_str(s: String) -> ValRefWithSource {

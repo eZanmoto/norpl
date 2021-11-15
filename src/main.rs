@@ -127,7 +127,7 @@ fn render(v: ValRefWithSource) -> String {
         Value::Bool(b) => {
             s += &format!("{}", b);
         },
-        Value::Int{n} => {
+        Value::Int(n) => {
             s += &format!("{}", n);
         },
         Value::Str{s: s_} => {

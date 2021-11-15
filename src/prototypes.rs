@@ -98,7 +98,7 @@ fn list_len_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSour
     match &(*this.unwrap().lock().unwrap()).v {
         Value::List{xs} => {
             // TODO Investigate casting `usize` to `i64`.
-            let n = Value::Int{n: xs.len() as i64};
+            let n = Value::Int(xs.len() as i64);
 
             Ok(eval::new_val_ref(n))
         },

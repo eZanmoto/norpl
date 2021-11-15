@@ -372,7 +372,7 @@ fn bind_(
                             match eval_expr(scopes, builtins, &location) {
                                 Ok(index) => {
                                     match &(*index.lock().unwrap()).v {
-                                        Value::Int{n} => {
+                                        Value::Int(n) => {
                                             // TODO Handle out-of-bounds
                                             // assignment.
                                             xs[*n as usize] = rhs;
@@ -776,7 +776,7 @@ fn eval_expr(
                 match eval_expr(scopes, builtins, start) {
                     Ok(v) => {
                         match (*v.lock().unwrap()).v {
-                            Value::Int{n} => n,
+                            Value::Int(n) => n,
                             _ => return Err(format!("range end must be an integer")),
                         }
                     },
@@ -789,7 +789,7 @@ fn eval_expr(
                 match eval_expr(scopes, builtins, end) {
                     Ok(v) => {
                         match (*v.lock().unwrap()).v {
-                            Value::Int{n} => n,
+                            Value::Int(n) => n,
                             _ => return Err(format!("range end must be an integer")),
                         }
                     },
@@ -814,7 +814,7 @@ fn eval_expr(
                             match eval_expr(scopes, builtins, location) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
-                                        Value::Int{n} => {
+                                        Value::Int(n) => {
                                             if *safe {
                                                 let v =
                                                     match xs.get(*n as usize) {
@@ -914,12 +914,12 @@ fn eval_expr(
                                 match eval_expr(scopes, builtins, start) {
                                     Ok(v) => {
                                         match &(*v.lock().unwrap()).v {
-                                            Value::Int{n: start} => {
+                                            Value::Int(start) => {
                                                 if let Some(end) = maybe_end {
                                                     match eval_expr(scopes, builtins, end) {
                                                         Ok(v) => {
                                                             match &(*v.lock().unwrap()).v {
-                                                                Value::Int{n: end} => {
+                                                                Value::Int(end) => {
                                                                     return get_index_range(
                                                                         xs,
                                                                         Some(*start as usize),
@@ -950,7 +950,7 @@ fn eval_expr(
                                 match eval_expr(scopes, builtins, end) {
                                     Ok(v) => {
                                         match &(*v.lock().unwrap()).v {
-                                            Value::Int{n: end} => {
+                                            Value::Int(end) => {
                                                 return get_index_range(xs, None, Some(*end as usize));
                                             },
                                             _ => return Err(format!("index must be an integer")),
@@ -1424,18 +1424,18 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
     -> Result<Value,String>
 {
     match (lhs, rhs) {
-        (Value::Int{n: lhs}, Value::Int{n: rhs}) => {
+        (Value::Int(lhs), Value::Int(rhs)) => {
             match op {
                 BinaryOp::EQ => Ok(Value::Bool(lhs == rhs)),
                 BinaryOp::NE => Ok(Value::Bool(lhs != rhs)),
                 BinaryOp::GT => Ok(Value::Bool(lhs > rhs)),
                 BinaryOp::LT => Ok(Value::Bool(lhs < rhs)),
 
-                BinaryOp::Sum => Ok(Value::Int{n: lhs + rhs}),
-                BinaryOp::Sub => Ok(Value::Int{n: lhs - rhs}),
-                BinaryOp::Mul => Ok(Value::Int{n: lhs * rhs}),
-                BinaryOp::Div => Ok(Value::Int{n: lhs / rhs}),
-                BinaryOp::Mod => Ok(Value::Int{n: lhs % rhs}),
+                BinaryOp::Sum => Ok(Value::Int(lhs + rhs)),
+                BinaryOp::Sub => Ok(Value::Int(lhs - rhs)),
+                BinaryOp::Mul => Ok(Value::Int(lhs * rhs)),
+                BinaryOp::Div => Ok(Value::Int(lhs / rhs)),
+                BinaryOp::Mod => Ok(Value::Int(lhs % rhs)),
 
                 _ => Err(format!("unsupported operation for integers ({:?})", op))
             }
