@@ -42,7 +42,7 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Str(String),
-    List{xs: List},
+    List(List),
     Object{props: Object},
 
     BuiltInFunc{f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>},
@@ -149,7 +149,7 @@ pub fn new_str(s: String) -> ValRefWithSource {
 }
 
 pub fn new_list(xs: List) -> ValRefWithSource {
-    new_val_ref(Value::List{xs})
+    new_val_ref(Value::List(xs))
 }
 
 pub fn new_object(props: Object) -> ValRefWithSource {

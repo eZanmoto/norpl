@@ -247,7 +247,7 @@ fn eval_stmt(
                 };
 
             match &mut (*iter_.lock().unwrap()).v {
-                Value::List{xs} => {
+                Value::List(xs) => {
                     let mut i = 0;
                     while xs.len() > 0 {
                         // TODO `lhs.clone()` is being used here because
@@ -350,7 +350,7 @@ fn bind_(
 
         Expr::List{xs} => {
             match &(*rhs.lock().unwrap()).v {
-                Value::List{xs: ys} => {
+                Value::List(ys) => {
                     // TODO Investigate removing the call to `to_vec()`.
                     bind_list(scopes, builtins, already_declared, xs, ys.to_vec(), bt)
                 },
@@ -368,7 +368,7 @@ fn bind_(
             match eval_expr(scopes, builtins, &expr) {
                 Ok(value) => {
                     match &mut (*value.lock().unwrap()).v {
-                        Value::List{xs} => {
+                        Value::List(xs) => {
                             match eval_expr(scopes, builtins, &location) {
                                 Ok(index) => {
                                     match &(*index.lock().unwrap()).v {
@@ -757,7 +757,7 @@ fn eval_expr(
                 }
 
                 match &(*v.lock().unwrap()).v {
-                    Value::List{xs} => {
+                    Value::List(xs) => {
                         for x in xs {
                             vals.push(x.clone());
                         }
@@ -810,7 +810,7 @@ fn eval_expr(
             match eval_expr(scopes, builtins, expr) {
                 Ok(source) => {
                     match &(*source.lock().unwrap()).v {
-                        Value::List{xs} => {
+                        Value::List(xs) => {
                             match eval_expr(scopes, builtins, location) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
@@ -909,7 +909,7 @@ fn eval_expr(
             match eval_expr(scopes, builtins, expr) {
                 Ok(source) => {
                     match &(*source.lock().unwrap()).v {
-                        Value::List{xs} => {
+                        Value::List(xs) => {
                             if let Some(start) = maybe_start {
                                 match eval_expr(scopes, builtins, start) {
                                     Ok(v) => {
@@ -1458,7 +1458,7 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 _ => Err(format!("unsupported operation for strings ({:?})", op))
             }
         },
-        (Value::List{xs: lhs}, Value::List{xs: rhs}) => {
+        (Value::List(lhs), Value::List(rhs)) => {
             match op {
                 BinaryOp::Sum => {
                     let mut xs = vec![];
@@ -1468,7 +1468,7 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                     for v in rhs {
                         xs.push(v.clone());
                     }
-                    Ok(Value::List{xs})
+                    Ok(Value::List(xs))
                 },
 
                 _ => Err(format!("unsupported operation for lists ({:?})", op))

@@ -96,7 +96,7 @@ fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSo
 fn list_len_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     match &(*this.unwrap().lock().unwrap()).v {
-        Value::List{xs} => {
+        Value::List(xs) => {
             // TODO Investigate casting `usize` to `i64`.
             let n = Value::Int(xs.len() as i64);
 

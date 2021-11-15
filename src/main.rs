@@ -139,7 +139,7 @@ fn render(v: ValRefWithSource) -> String {
         Value::Func{..} => {
             s += "<user-defined function>";
         },
-        Value::List{xs} => {
+        Value::List(xs) => {
             s += "[\n";
             for x in xs {
                 s += &format!("    {},\n", render(x.clone()));
@@ -166,7 +166,7 @@ fn render(v: ValRefWithSource) -> String {
 fn len_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
-        Value::List{xs} => {
+        Value::List(xs) => {
             // TODO Investigate casting `usize` to `i64`.
             Ok(eval::new_int(xs.len() as i64))
         },
