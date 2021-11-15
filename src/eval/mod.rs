@@ -6,10 +6,22 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::process::Command;
 use std::str;
-use std::sync::Arc;
-use std::sync::Mutex;
+
+mod value;
+mod builtins;
 
 use ast::*;
+pub use self::value::DeclType;
+pub use self::value::new_val_ref;
+pub use self::value::new_val_ref_with_source;
+pub use self::value::Object;
+pub use self::value::Scope;
+pub use self::value::ScopeStack;
+pub use self::value::ValRefWithSource;
+pub use self::value::Value;
+pub use self::value::ValWithSource;
+pub use self::builtins::Builtins;
+pub use self::builtins::Prototypes;
 
 pub fn eval_prog(
     scopes: &mut ScopeStack,
@@ -235,8 +247,8 @@ fn eval_stmt(
                         // `bind_unspread_list` is destructive; this can be updated to
                         // a reference if this function is updated to be
                         // non-destructive.
-                        let entry = new_val_ref(Value::List{xs: vec![
-                            new_val_ref(Value::Int{n: i}),
+                        let entry = value::new_val_ref(Value::List{xs: vec![
+                            value::new_val_ref(Value::Int{n: i}),
                             xs.remove(0),
                         ]});
 
@@ -253,8 +265,8 @@ fn eval_stmt(
 
                 Value::Object{props} => {
                     for (key, value) in props {
-                        let entry = new_val_ref(Value::List{xs: vec![
-                            new_val_ref(Value::Str{s: key.to_string()}),
+                        let entry = value::new_val_ref(Value::List{xs: vec![
+                            value::new_val_ref(Value::Str{s: key.to_string()}),
                             value.clone(),
                         ]});
 
@@ -283,7 +295,7 @@ fn eval_stmt(
             let r = bind_name(
                 scopes,
                 name.clone(),
-                new_val_ref(func),
+                value::new_val_ref(func),
                 BindType::VarDeclaration,
             );
             if let Err(e) = r {
@@ -551,7 +563,7 @@ fn bind_unspread_list(
 
     match unspread_expr {
         Expr::Var{name} => {
-            bind_name_(scopes, &mut already_declared, name, new_val_ref(Value::List{xs: rhs_rest}), bt)
+            bind_name_(scopes, &mut already_declared, name, value::new_val_ref(Value::List{xs: rhs_rest}), bt)
         }
         _ => {
             Err(format!("can only unspread to a variable"))
@@ -630,7 +642,7 @@ fn bind_object(
                         }
 
                         let lhs = Expr::Var{name: name.clone()};
-                        let new_rhs = new_val_ref(Value::Object{props});
+                        let new_rhs = value::new_val_ref(Value::Object{props});
                         if let Err(e) = bind_(scopes, builtins, &mut already_declared, lhs, new_rhs, bt) {
                             return Err(format!("couldn't bind '{}': {}", name, e));
                         }
@@ -719,13 +731,13 @@ fn eval_expr(
     expr: &Expr,
 ) -> Result<ValRefWithSource,String> {
     match expr {
-        Expr::Null => Ok(new_val_ref(Value::Null)),
+        Expr::Null => Ok(value::new_val_ref(Value::Null)),
 
-        Expr::Bool{b} => Ok(new_val_ref(Value::Bool{b: b.clone()})),
+        Expr::Bool{b} => Ok(value::new_val_ref(Value::Bool{b: b.clone()})),
 
-        Expr::Int{n} => Ok(new_val_ref(Value::Int{n: n.clone()})),
+        Expr::Int{n} => Ok(value::new_val_ref(Value::Int{n: n.clone()})),
 
-        Expr::Str{s} => Ok(new_val_ref(Value::Str{s: s.clone()})),
+        Expr::Str{s} => Ok(value::new_val_ref(Value::Str{s: s.clone()})),
 
         Expr::List{xs} => {
             let mut vals = vec![];
@@ -754,7 +766,7 @@ fn eval_expr(
                 };
             }
 
-            Ok(new_val_ref(Value::List{xs: vals}))
+            Ok(value::new_val_ref(Value::List{xs: vals}))
         },
 
         Expr::Range{start, end} => {
@@ -786,10 +798,10 @@ fn eval_expr(
 
             let range =
                 (start..end)
-                    .map(|n| new_val_ref(Value::Int{n}))
+                    .map(|n| value::new_val_ref(Value::Int{n}))
                     .collect();
 
-            Ok(new_val_ref(Value::List{xs: range}))
+            Ok(value::new_val_ref(Value::List{xs: range}))
         },
 
         Expr::Index{expr, location, safe} => {
@@ -804,13 +816,13 @@ fn eval_expr(
                                             if *safe {
                                                 let v =
                                                     match xs.get(*n as usize) {
-                                                        Some(v) => new_val_ref(Value::List{xs: vec![
+                                                        Some(v) => value::new_val_ref(Value::List{xs: vec![
                                                             v.clone(),
-                                                            new_val_ref(Value::Bool{b: true}),
+                                                            value::new_val_ref(Value::Bool{b: true}),
                                                         ]}),
-                                                        None => new_val_ref(Value::List{xs: vec![
-                                                            new_val_ref(Value::Null),
-                                                            new_val_ref(Value::Bool{b: false}),
+                                                        None => value::new_val_ref(Value::List{xs: vec![
+                                                            value::new_val_ref(Value::Null),
+                                                            value::new_val_ref(Value::Bool{b: false}),
                                                         ]}),
                                                     };
 
@@ -841,18 +853,18 @@ fn eval_expr(
                                                     match props.get(name) {
                                                         Some(v) => {
                                                             let prop_val = &(*v.lock().unwrap()).v;
-                                                            new_val_ref(Value::List{xs: vec![
-                                                                new_val_ref_with_source(
+                                                            value::new_val_ref(Value::List{xs: vec![
+                                                                value::new_val_ref_with_source(
                                                                     prop_val.clone(),
                                                                     source.clone(),
                                                                 ),
-                                                                new_val_ref(Value::Bool{b: true}),
+                                                                value::new_val_ref(Value::Bool{b: true}),
                                                             ]})
                                                         },
                                                         None => {
-                                                            new_val_ref(Value::List{xs: vec![
-                                                                new_val_ref(Value::Null),
-                                                                new_val_ref(Value::Bool{b: false}),
+                                                            value::new_val_ref(Value::List{xs: vec![
+                                                                value::new_val_ref(Value::Null),
+                                                                value::new_val_ref(Value::Bool{b: false}),
                                                             ]})
                                                         }
                                                     };
@@ -862,7 +874,7 @@ fn eval_expr(
                                                 match props.get(name) {
                                                     Some(v) => {
                                                         let prop_val = &(*v.lock().unwrap()).v;
-                                                        return Ok(new_val_ref_with_source(
+                                                        return Ok(value::new_val_ref_with_source(
                                                             prop_val.clone(),
                                                             source.clone(),
                                                         ));
@@ -977,7 +989,7 @@ fn eval_expr(
                             Some(v) => {
                                 let proto_prop_val = &(*v.lock().unwrap()).v;
 
-                                Ok(new_val_ref_with_source(
+                                Ok(value::new_val_ref_with_source(
                                     proto_prop_val.clone(),
                                     value.clone(),
                                 ))
@@ -993,7 +1005,7 @@ fn eval_expr(
                                     Some(v) => {
                                         let prop_val = &(*v.lock().unwrap()).v;
 
-                                        Ok(new_val_ref_with_source(
+                                        Ok(value::new_val_ref_with_source(
                                             prop_val.clone(),
                                             v.clone(),
                                         ))
@@ -1019,7 +1031,7 @@ fn eval_expr(
                 Ok(object) => {
                     match &(*object.lock().unwrap()).v {
                         Value::Str{s} => {
-                            Ok(new_val_ref(Value::Command{
+                            Ok(value::new_val_ref(Value::Command{
                                 prog: s.clone(),
                                 args: vec![name.clone()],
                             }))
@@ -1029,7 +1041,7 @@ fn eval_expr(
                             let mut args_ = args.clone();
                             args_.push(name.clone());
 
-                            Ok(new_val_ref(Value::Command{
+                            Ok(value::new_val_ref(Value::Command{
                                 prog: prog.clone(),
                                 args: args_,
                             }))
@@ -1112,7 +1124,7 @@ fn eval_expr(
                 }
             }
 
-            Ok(new_val_ref(Value::Object{props: vals}))
+            Ok(value::new_val_ref(Value::Object{props: vals}))
         },
 
         Expr::UnaryOp{op, expr} => {
@@ -1128,7 +1140,7 @@ fn eval_expr(
                     Err(e) => return Err(e),
                 };
 
-            Ok(new_val_ref(result))
+            Ok(value::new_val_ref(result))
         },
 
         Expr::BinaryOp{op, lhs, rhs} => {
@@ -1157,7 +1169,7 @@ fn eval_expr(
                     return Err(format!("dev error: unexpected slice size"));
                 };
 
-            Ok(new_val_ref(v))
+            Ok(value::new_val_ref(v))
         },
 
         Expr::Var{name} => {
@@ -1249,7 +1261,7 @@ fn eval_expr(
                             Ok(ret_val) => {
                                 match ret_val {
                                     Some(v) => v,
-                                    None => new_val_ref(Value::Null),
+                                    None => value::new_val_ref(Value::Null),
                                 }
                             },
                             Err(e) => {
@@ -1316,23 +1328,23 @@ fn eval_expr(
                             Some(c) => c as i64,
                             None => return Err(format!("process didn't return exit code")),
                         };
-                    props.insert("exit_code".to_string(), new_val_ref(Value::Int{n: exit_code}));
+                    props.insert("exit_code".to_string(), value::new_val_ref(Value::Int{n: exit_code}));
 
                     let stdout =
                         match str::from_utf8(&output.stdout) {
                             Ok(s) => s.to_string(),
                             Err(e) => return Err(format!("couldn't parse STDOUT as UTF-8: {:?}", e)),
                         };
-                    props.insert("stdout".to_string(), new_val_ref(Value::Str{s: stdout}));
+                    props.insert("stdout".to_string(), value::new_val_ref(Value::Str{s: stdout}));
 
                     let stderr =
                         match str::from_utf8(&output.stderr) {
                             Ok(s) => s.to_string(),
                             Err(e) => return Err(format!("couldn't parse STDERR as UTF-8: {:?}", e)),
                         };
-                    props.insert("stderr".to_string(), new_val_ref(Value::Str{s: stderr}));
+                    props.insert("stderr".to_string(), value::new_val_ref(Value::Str{s: stderr}));
 
-                    Ok(new_val_ref(Value::Object{props}))
+                    Ok(value::new_val_ref(Value::Object{props}))
                 },
                 Err(e) => {
                     return Err(format!("process failed: {:?}", e));
@@ -1346,7 +1358,7 @@ fn eval_expr(
                 stmts: stmts.clone(),
                 closure: scopes.clone(),
             };
-            Ok(new_val_ref(f))
+            Ok(value::new_val_ref(f))
         },
 
         // _ => Err(format!("unhandled expression: {:?}", expr)),
@@ -1378,7 +1390,7 @@ fn get_index_range(
 
     if let Some(vs) = xs.get(*start .. *end) {
         let list = Value::List{xs: vs.to_vec()};
-        return Ok(new_val_ref(list));
+        return Ok(value::new_val_ref(list));
     }
 
     Err(format!("index out of bounds"))
@@ -1470,167 +1482,4 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
         },
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),
     }
-}
-
-// TODO Consider renaming to `new_val_ref_with_no_source`.
-pub fn new_val_ref(v: Value) -> ValRefWithSource {
-    Arc::new(Mutex::new(ValWithSource{
-        v: v,
-        source: None,
-    }))
-}
-
-pub fn new_val_ref_with_source(v: Value, source: ValRefWithSource) -> ValRefWithSource {
-    Arc::new(Mutex::new(ValWithSource{
-        v: v,
-        source: Some(source),
-    }))
-}
-
-// `ValRefWithSource` is intended to be used as a regular `ValRef` would, but
-// it includes the most recent object it was referenced from. For example, in
-// the case of `x['f']`, the `ValRef` is the value stored at the location
-// `'f'`, and the `source` of this value is `x`.
-pub type ValRefWithSource = Arc<Mutex<ValWithSource>>;
-
-#[derive(Clone,Debug)]
-pub struct ValWithSource {
-    pub v: Value,
-    source: Option<ValRefWithSource>,
-}
-
-#[derive(Clone,Debug)]
-pub enum Value {
-    Null,
-
-    Bool{b: bool},
-    Int{n: i64},
-    Str{s: String},
-    List{xs: Vec<ValRefWithSource>},
-    Object{props: Object},
-
-    BuiltInFunc{f: fn(Option<ValRefWithSource>, Vec<ValRefWithSource>) -> Result<ValRefWithSource, String>},
-    Func{args: Vec<Expr>, stmts: Block, closure: ScopeStack},
-
-    Command{prog: String, args: Vec<String>},
-}
-
-#[derive(Clone,Debug)]
-pub struct ScopeStack(Vec<Arc<Mutex<Scope>>>);
-
-pub type Scope = HashMap<String, (ValRefWithSource, DeclType)>;
-
-#[derive(Debug,PartialEq)]
-pub enum DeclType {
-    Const,
-    Var,
-}
-
-impl ScopeStack {
-    pub fn new(scopes: Vec<Arc<Mutex<Scope>>>) -> ScopeStack {
-        ScopeStack(scopes)
-    }
-
-    fn new_from_push(&self, scope: Scope) -> ScopeStack {
-        let mut scopes = self.0.clone();
-        scopes.push(Arc::new(Mutex::new(scope)));
-
-        ScopeStack::new(scopes)
-    }
-
-    fn declare(&mut self, name: String, v: ValRefWithSource, decl_type: DeclType)
-        -> Result<(), String>
-    {
-        let mut cur_scope =
-            self.0.last()
-                .expect("`ScopeStack` stack shouldn't be empty")
-                .lock()
-                .unwrap();
-
-        if cur_scope.contains_key(&name) {
-            return Err(format!("'{}' is already defined in this scope", name));
-        }
-        cur_scope.insert(name, (v, decl_type));
-
-        Ok(())
-    }
-
-    // `assign` replaces `name` in the topmost scope of this `ScopeStack` and
-    // returns `true`, or else it returns `false` if `name` wasn't found in
-    // this `ScopeStack`. `assign` returns an error if attempting to assign to
-    // a constant binding.
-    fn assign(&mut self, name: String, v: ValRefWithSource) -> Result<(),String> {
-        for scope in self.0.iter().rev() {
-            let mut unlocked_scope = scope.lock().unwrap();
-            if let Some((_, decl_type)) = unlocked_scope.get(&name) {
-                if *decl_type == DeclType::Const {
-                    return Err(format!("cannot assign to constant binding"));
-                }
-                // This should ideally overwrite the value stored in this
-                // variable instead of introducing a new variable with a new
-                // binding, but this isn't possible at present with the current
-                // structure of `ValRefWithSource`; see the comment above
-                // `ValRefWithSource` for more details.
-                unlocked_scope.insert(name, (v, DeclType::Var));
-                return Ok(());
-            }
-        }
-
-        Err(format!("'{}' isn't defined", name))
-    }
-
-    fn get(&self, name: &String) -> Option<ValRefWithSource> {
-        for scope in self.0.iter().rev() {
-            let unlocked_scope = scope.lock().unwrap();
-            if let Some((v, _)) = unlocked_scope.get(name) {
-                // TODO Remove `clone()`.
-                return Some(v.clone());
-            }
-        }
-
-        None
-    }
-}
-
-pub type Object = HashMap<String, ValRefWithSource>;
-
-pub struct Prototypes {
-    pub bools: Object,
-    pub ints: Object,
-    pub strs: Object,
-    pub lists: Object,
-    pub objects: Object,
-    pub funcs: Object,
-    pub commands: Object,
-}
-
-impl Prototypes {
-    fn prototype_for(&self, v: &Value) -> Result<Object, String> {
-        let proto =
-            match v {
-                // TODO Use references instead of `clone()`s.
-
-                Value::Bool{..} => self.bools.clone(),
-                Value::Int{..} => self.ints.clone(),
-                Value::Str{..} => self.strs.clone(),
-                Value::List{..} => self.lists.clone(),
-                Value::Object{..} => self.objects.clone(),
-
-                Value::BuiltInFunc{..} => self.funcs.clone(),
-                Value::Func{..} => self.funcs.clone(),
-
-                Value::Command{..} => self.commands.clone(),
-
-                Value::Null => {
-                    return Err(format!("`null` doesn't have an associated prototype"));
-                },
-            };
-
-        Ok(proto)
-    }
-}
-
-pub struct Builtins {
-    pub std: Object,
-    pub prototypes: Prototypes,
 }
