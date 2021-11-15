@@ -16,6 +16,7 @@ mod prototypes;
 
 use ast::Expr;
 use eval::Builtins;
+use eval::List;
 use eval::ScopeStack;
 use eval::ValRefWithSource;
 use eval::Value;
@@ -35,39 +36,35 @@ fn main() {
     let test = read_test();
 
     let global_bindings = vec![
-        (Expr::Var{name: "panic".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: panic_})),
-        (Expr::Var{name: "print".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: print_})),
-        (Expr::Var{name: "len".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: len_})),
-        (Expr::Var{name: "type".to_string()}, eval::new_val_ref(Value::BuiltInFunc{f: type_})),
+        (Expr::Var{name: "panic".to_string()}, eval::new_built_in_func(panic_)),
+        (Expr::Var{name: "print".to_string()}, eval::new_built_in_func(print_)),
+        (Expr::Var{name: "len".to_string()}, eval::new_built_in_func(len_)),
+        (Expr::Var{name: "type".to_string()}, eval::new_built_in_func(type_)),
     ];
 
     let std = HashMap::<_, _>::from_iter(IntoIter::new([
         (
             "proc".to_string(),
-            eval::new_val_ref(Value::Object{
-                props: HashMap::<_, _>::from_iter(IntoIter::new([
-                    (
-                        "env".to_string(),
-                        eval::new_val_ref(Value::Object{
-                            props: HashMap::<_, _>::from_iter(
-                                env::vars()
-                                    .map(|(k, v)| (k, eval::new_val_ref(Value::Str{s: v}))),
-                            ),
-                        },
+            eval::new_object(HashMap::<_, _>::from_iter(IntoIter::new([
+                (
+                    "env".to_string(),
+                    eval::new_object(HashMap::<_, _>::from_iter(
+                        env::vars()
+                            .map(|(k, v)| (k, eval::new_str(v))),
                     )),
+                ),
 
-                    (
-                        "args".to_string(),
-                        eval::new_val_ref(Value::List{xs: vec![
-                            eval::new_val_ref(Value::Str{s: "--dry-run".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "abc".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "--mirror".to_string()}),
-                            eval::new_val_ref(Value::Str{s: "Aliyun".to_string()}),
-                        ]},
-                    )),
-                ])),
-            }),
+                (
+                    "args".to_string(),
+                    eval::new_list(vec![
+                        eval::new_str("--dry-run".to_string()),
+                        eval::new_str("--mirror".to_string()),
+                        eval::new_str("abc".to_string()),
+                        eval::new_str("--mirror".to_string()),
+                        eval::new_str("Aliyun".to_string()),
+                    ]),
+                ),
+            ]))),
         ),
     ]));
 
@@ -99,10 +96,10 @@ fn read_test() -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn panic_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn panic_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
-        Value::Str{s} => {
+        Value::Str(s) => {
             Err(s.to_string())
         },
         _ => {
@@ -113,11 +110,11 @@ fn panic_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn print_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn print_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Remove varargs support.
     println!("{}", render(vs[0].clone()));
 
-    Ok(eval::new_val_ref(Value::Null))
+    Ok(eval::new_null())
 }
 
 fn render(v: ValRefWithSource) -> String {
@@ -127,13 +124,13 @@ fn render(v: ValRefWithSource) -> String {
         Value::Null => {
             s += "null";
         },
-        Value::Bool{b} => {
+        Value::Bool(b) => {
             s += &format!("{}", b);
         },
-        Value::Int{n} => {
+        Value::Int(n) => {
             s += &format!("{}", n);
         },
-        Value::Str{s: s_} => {
+        Value::Str(s_) => {
             s += &format!("'{}'", s_);
         },
         Value::BuiltInFunc{..} => {
@@ -142,14 +139,14 @@ fn render(v: ValRefWithSource) -> String {
         Value::Func{..} => {
             s += "<user-defined function>";
         },
-        Value::List{xs} => {
+        Value::List(xs) => {
             s += "[\n";
             for x in xs {
                 s += &format!("    {},\n", render(x.clone()));
             }
             s += "]";
         },
-        Value::Object{props} => {
+        Value::Object(props) => {
             s += "{\n";
             for (name, value) in props {
                 s += &format!("    '{}': {},\n", name, render(value.clone()));
@@ -166,14 +163,12 @@ fn render(v: ValRefWithSource) -> String {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn len_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn len_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
-        Value::List{xs} => {
+        Value::List(xs) => {
             // TODO Investigate casting `usize` to `i64`.
-            let n = Value::Int{n: xs.len() as i64};
-
-            Ok(eval::new_val_ref(n))
+            Ok(eval::new_int(xs.len() as i64))
         },
         _ => {
             Err(format!("can only call `len` on lists"))
@@ -183,7 +178,7 @@ fn len_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<Va
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn type_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<ValRefWithSource, String> {
+fn type_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     let t =
         match &(*vs[0].lock().unwrap()).v {
@@ -198,5 +193,5 @@ fn type_(_this: Option<ValRefWithSource>, vs: Vec<ValRefWithSource>) -> Result<V
             Value::Command{..} => "cmd",
         };
 
-    Ok(eval::new_val_ref(Value::Str{s: t.to_string()}))
+    Ok(eval::new_str(t.to_string()))
 }
