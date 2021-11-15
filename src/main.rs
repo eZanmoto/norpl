@@ -124,7 +124,7 @@ fn render(v: ValRefWithSource) -> String {
         Value::Null => {
             s += "null";
         },
-        Value::Bool{b} => {
+        Value::Bool(b) => {
             s += &format!("{}", b);
         },
         Value::Int{n} => {

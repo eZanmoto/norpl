@@ -39,7 +39,7 @@ pub struct ValWithSource {
 pub enum Value {
     Null,
 
-    Bool{b: bool},
+    Bool(bool),
     Int{n: i64},
     Str{s: String},
     List{xs: List},
@@ -137,7 +137,7 @@ pub fn new_null() -> ValRefWithSource {
 }
 
 pub fn new_bool(b: bool) -> ValRefWithSource {
-    new_val_ref(Value::Bool{b})
+    new_val_ref(Value::Bool(b))
 }
 
 pub fn new_int(n: i64) -> ValRefWithSource {

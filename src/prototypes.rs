@@ -78,7 +78,7 @@ fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSo
         Value::Str{s} => {
             match &(*vs[0].lock().unwrap()).v {
                 Value::Str{s: prefix} => {
-                    Ok(eval::new_val_ref(Value::Bool{b: s.starts_with(prefix)}))
+                    Ok(eval::new_val_ref(Value::Bool(s.starts_with(prefix))))
                 },
                 _ => {
                     Err(format!("the first argument to `starts_with` must be a string"))

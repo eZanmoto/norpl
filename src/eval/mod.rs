@@ -201,7 +201,7 @@ fn eval_stmt(
 
                 let b =
                     match (*cond.lock().unwrap()).v {
-                        Value::Bool{b} => b,
+                        Value::Bool(b) => b,
                         _ => return Err(format!("condition must be a `bool`")),
                     };
 
@@ -225,7 +225,7 @@ fn eval_stmt(
 
                 let b =
                     match (*cond.lock().unwrap()).v {
-                        Value::Bool{b} => b,
+                        Value::Bool(b) => b,
                         _ => return Err(format!("condition must be a `bool`")),
                     };
 
@@ -1411,9 +1411,9 @@ pub fn eval_exprs(
 
 fn apply_unary_operation(op: &UnaryOp, v: &Value) -> Result<Value,String> {
     match v {
-        Value::Bool{b} => {
+        Value::Bool(b) => {
             match op {
-                UnaryOp::Not => Ok(Value::Bool{b: !b}),
+                UnaryOp::Not => Ok(Value::Bool(!b)),
             }
         },
         _ => Err(format!("invalid type: {:?}", v)),
@@ -1426,10 +1426,10 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
     match (lhs, rhs) {
         (Value::Int{n: lhs}, Value::Int{n: rhs}) => {
             match op {
-                BinaryOp::EQ => Ok(Value::Bool{b: lhs == rhs}),
-                BinaryOp::NE => Ok(Value::Bool{b: lhs != rhs}),
-                BinaryOp::GT => Ok(Value::Bool{b: lhs > rhs}),
-                BinaryOp::LT => Ok(Value::Bool{b: lhs < rhs}),
+                BinaryOp::EQ => Ok(Value::Bool(lhs == rhs)),
+                BinaryOp::NE => Ok(Value::Bool(lhs != rhs)),
+                BinaryOp::GT => Ok(Value::Bool(lhs > rhs)),
+                BinaryOp::LT => Ok(Value::Bool(lhs < rhs)),
 
                 BinaryOp::Sum => Ok(Value::Int{n: lhs + rhs}),
                 BinaryOp::Sub => Ok(Value::Int{n: lhs - rhs}),
@@ -1440,19 +1440,19 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 _ => Err(format!("unsupported operation for integers ({:?})", op))
             }
         },
-        (Value::Bool{b: lhs}, Value::Bool{b: rhs}) => {
+        (Value::Bool(lhs), Value::Bool(rhs)) => {
             match op {
-                BinaryOp::EQ => Ok(Value::Bool{b: lhs == rhs}),
-                BinaryOp::NE => Ok(Value::Bool{b: lhs != rhs}),
-                BinaryOp::And => Ok(Value::Bool{b: *lhs && *rhs}),
-                BinaryOp::Or => Ok(Value::Bool{b: *lhs || *rhs}),
+                BinaryOp::EQ => Ok(Value::Bool(lhs == rhs)),
+                BinaryOp::NE => Ok(Value::Bool(lhs != rhs)),
+                BinaryOp::And => Ok(Value::Bool(*lhs && *rhs)),
+                BinaryOp::Or => Ok(Value::Bool(*lhs || *rhs)),
 
                 _ => Err(format!("unsupported operation for booleans ({:?})", op))
             }
         },
         (Value::Str{s: lhs}, Value::Str{s: rhs}) => {
             match op {
-                BinaryOp::EQ => Ok(Value::Bool{b: lhs == rhs}),
+                BinaryOp::EQ => Ok(Value::Bool(lhs == rhs)),
                 BinaryOp::Sum => Ok(Value::Str{s: lhs.to_owned() + rhs}),
 
                 _ => Err(format!("unsupported operation for strings ({:?})", op))
