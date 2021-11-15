@@ -146,7 +146,7 @@ fn render(v: ValRefWithSource) -> String {
             }
             s += "]";
         },
-        Value::Object{props} => {
+        Value::Object(props) => {
             s += "{\n";
             for (name, value) in props {
                 s += &format!("    '{}': {},\n", name, render(value.clone()));

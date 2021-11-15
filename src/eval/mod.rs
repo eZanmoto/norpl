@@ -270,7 +270,7 @@ fn eval_stmt(
                     }
                 },
 
-                Value::Object{props} => {
+                Value::Object(props) => {
                     for (key, value) in props {
                         let entry = value::new_list(vec![
                             value::new_str(key.to_string()),
@@ -386,7 +386,7 @@ fn bind_(
                             };
                         },
 
-                        Value::Object{props} => {
+                        Value::Object(props) => {
                             match eval_expr(scopes, builtins, &location) {
                                 Ok(index) => {
                                     match &(*index.lock().unwrap()).v {
@@ -419,7 +419,7 @@ fn bind_(
             match eval_expr(scopes, builtins, &expr) {
                 Ok(value) => {
                     match &mut (*value.lock().unwrap()).v {
-                        Value::Object{props} => props.insert(name, rhs),
+                        Value::Object(props) => props.insert(name, rhs),
                         _ => return Err(format!("can only assign to properties of objects")),
                     }
                 },
@@ -431,7 +431,7 @@ fn bind_(
 
         Expr::Object{props: lhs_props} => {
             match &(*rhs.lock().unwrap()).v {
-                Value::Object{props: rhs_props} => {
+                Value::Object(rhs_props) => {
                     bind_object(scopes, builtins, already_declared, lhs_props, rhs_props.clone(), bt)
                 },
                 _ => {
@@ -845,7 +845,7 @@ fn eval_expr(
                             }
                         },
 
-                        Value::Object{props} => {
+                        Value::Object(props) => {
                             match eval_expr(scopes, builtins, location) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
@@ -1002,7 +1002,7 @@ fn eval_expr(
                         }
                     } else {
                         match &(*value.lock().unwrap()).v {
-                            Value::Object{props} => {
+                            Value::Object(props) => {
                                 match props.get(name) {
                                     Some(v) => {
                                         let prop_val = &(*v.lock().unwrap()).v;
@@ -1094,7 +1094,7 @@ fn eval_expr(
                                 };
 
                             match &(*v.lock().unwrap()).v {
-                                Value::Object{props} => {
+                                Value::Object(props) => {
                                     for (name, value) in props.iter() {
                                         vals.insert(name.to_string(), value.clone());
                                     }

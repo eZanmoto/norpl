@@ -43,7 +43,7 @@ pub enum Value {
     Int(i64),
     Str(String),
     List(List),
-    Object{props: Object},
+    Object(Object),
 
     BuiltInFunc{f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>},
     Func{args: Vec<Expr>, stmts: Block, closure: ScopeStack},
@@ -153,7 +153,7 @@ pub fn new_list(xs: List) -> ValRefWithSource {
 }
 
 pub fn new_object(props: Object) -> ValRefWithSource {
-    new_val_ref(Value::Object{props})
+    new_val_ref(Value::Object(props))
 }
 
 pub fn new_built_in_func(f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>)
