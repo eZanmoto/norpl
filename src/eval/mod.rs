@@ -390,7 +390,7 @@ fn bind_(
                             match eval_expr(scopes, builtins, &location) {
                                 Ok(index) => {
                                     match &(*index.lock().unwrap()).v {
-                                        Value::Str{s} => {
+                                        Value::Str(s) => {
                                             props.insert(s.to_string(), rhs);
                                         },
                                         _ => return Err(format!("index must be an integer")),
@@ -666,7 +666,7 @@ fn bind_object(
                     match eval_expr(scopes, builtins, &name) {
                         Ok(v) => {
                             match &(*v.lock().unwrap()).v {
-                                Value::Str{s} => s.clone(),
+                                Value::Str(s) => s.clone(),
                                 _ => return Err(format!("property key must be a string")),
                             }
                         },
@@ -705,7 +705,7 @@ fn bind_object_pair(
         match eval_expr(scopes, builtins, item_name) {
             Ok(v) => {
                 match &(*v.lock().unwrap()).v {
-                    Value::Str{s} => s.clone(),
+                    Value::Str(s) => s.clone(),
                     _ => return Err(format!("property key must be a string")),
                 }
             },
@@ -849,7 +849,7 @@ fn eval_expr(
                             match eval_expr(scopes, builtins, location) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
-                                        Value::Str{s: name} => {
+                                        Value::Str(name) => {
                                             if *safe {
                                                 let v =
                                                     match props.get(name) {
@@ -1032,7 +1032,7 @@ fn eval_expr(
             match eval_expr(scopes, builtins, expr) {
                 Ok(object) => {
                     match &(*object.lock().unwrap()).v {
-                        Value::Str{s: prog} => {
+                        Value::Str(prog) => {
                             let args = vec![name.clone()];
 
                             Ok(value::new_command(prog.clone(), args))
@@ -1064,7 +1064,7 @@ fn eval_expr(
                             match eval_expr(scopes, builtins, &name) {
                                 Ok(v) => {
                                     match &(*v.lock().unwrap()).v {
-                                        Value::Str{s} => s.clone(),
+                                        Value::Str(s) => s.clone(),
                                         _ => return Err(format!("property key must be a string")),
                                     }
                                 },
@@ -1284,11 +1284,11 @@ fn eval_expr(
                     Ok(value) => {
                         let ValWithSource{v, ..} = &*value.lock().unwrap();
                         match v {
-                            Value::Str{s: prog} => {
+                            Value::Str(prog) => {
                                 let mut args = vec![];
                                 for val in vals {
                                     match &(*val.lock().unwrap()).v {
-                                        Value::Str{s} => args.push(s.clone()),
+                                        Value::Str(s) => args.push(s.clone()),
                                         _ => return Err(format!("program arguments must be strings")),
                                     }
                                 }
@@ -1300,7 +1300,7 @@ fn eval_expr(
                                 let mut args_ = args.clone();
                                 for val in vals {
                                     match &(*val.lock().unwrap()).v {
-                                        Value::Str{s} => args_.push(s.clone()),
+                                        Value::Str(s) => args_.push(s.clone()),
                                         _ => return Err(format!("program arguments must be strings")),
                                     }
                                 }
@@ -1450,10 +1450,10 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 _ => Err(format!("unsupported operation for booleans ({:?})", op))
             }
         },
-        (Value::Str{s: lhs}, Value::Str{s: rhs}) => {
+        (Value::Str(lhs), Value::Str(rhs)) => {
             match op {
                 BinaryOp::EQ => Ok(Value::Bool(lhs == rhs)),
-                BinaryOp::Sum => Ok(Value::Str{s: lhs.to_owned() + rhs}),
+                BinaryOp::Sum => Ok(Value::Str(lhs.to_owned() + rhs)),
 
                 _ => Err(format!("unsupported operation for strings ({:?})", op))
             }

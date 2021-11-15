@@ -47,16 +47,16 @@ fn strip_prefix_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithS
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
-        Value::Str{s: unstripped} => {
+        Value::Str(unstripped) => {
             match &(*vs[0].lock().unwrap()).v {
-                Value::Str{s: prefix} => {
+                Value::Str(prefix) => {
                     let stripped =
                         match unstripped.strip_prefix(prefix) {
                             Some(s) => s,
                             None => unstripped,
                         };
 
-                    Ok(eval::new_val_ref(Value::Str{s: stripped.to_string()}))
+                    Ok(eval::new_val_ref(Value::Str(stripped.to_string())))
                 },
                 _ => {
                     Err(format!("the first argument to `strip_prefix` must be a string"))
@@ -75,9 +75,9 @@ fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSo
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
-        Value::Str{s} => {
+        Value::Str(s) => {
             match &(*vs[0].lock().unwrap()).v {
-                Value::Str{s: prefix} => {
+                Value::Str(prefix) => {
                     Ok(eval::new_val_ref(Value::Bool(s.starts_with(prefix))))
                 },
                 _ => {

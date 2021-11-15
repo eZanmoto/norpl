@@ -99,7 +99,7 @@ fn read_test() -> String {
 fn panic_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
-        Value::Str{s} => {
+        Value::Str(s) => {
             Err(s.to_string())
         },
         _ => {
@@ -130,7 +130,7 @@ fn render(v: ValRefWithSource) -> String {
         Value::Int(n) => {
             s += &format!("{}", n);
         },
-        Value::Str{s: s_} => {
+        Value::Str(s_) => {
             s += &format!("'{}'", s_);
         },
         Value::BuiltInFunc{..} => {
