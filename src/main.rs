@@ -11,10 +11,11 @@ use std::io::BufReader;
 use std::iter::FromIterator;
 
 mod ast;
+mod builtins;
 mod eval;
-mod prototypes;
 
 use ast::Expr;
+use builtins::prototypes;
 use eval::Builtins;
 use eval::List;
 use eval::ScopeStack;

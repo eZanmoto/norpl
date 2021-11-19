@@ -6,11 +6,11 @@ use std::array::IntoIter;
 use std::collections::HashMap;
 use std::iter::FromIterator;
 
-use super::eval;
-use super::eval::List;
-use super::eval::Prototypes;
-use super::eval::ValRefWithSource;
-use super::eval::Value;
+use crate::eval;
+use crate::eval::List;
+use crate::eval::Prototypes;
+use crate::eval::ValRefWithSource;
+use crate::eval::Value;
 
 pub fn prototypes() -> Prototypes {
     Prototypes{
