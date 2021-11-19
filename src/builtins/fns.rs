@@ -2,10 +2,10 @@
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
-use crate::eval;
-use crate::eval::List;
-use crate::eval::ValRefWithSource;
-use crate::eval::Value;
+use crate::eval::value;
+use crate::eval::value::List;
+use crate::eval::value::ValRefWithSource;
+use crate::eval::value::Value;
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
@@ -27,7 +27,7 @@ pub fn print_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSou
     // TODO Remove varargs support.
     println!("{}", render(vs[0].clone()));
 
-    Ok(eval::new_null())
+    Ok(value::new_null())
 }
 
 fn render(v: ValRefWithSource) -> String {
@@ -81,7 +81,7 @@ pub fn len_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSourc
     match &(*vs[0].lock().unwrap()).v {
         Value::List(xs) => {
             // TODO Investigate casting `usize` to `i64`.
-            Ok(eval::new_int(xs.len() as i64))
+            Ok(value::new_int(xs.len() as i64))
         },
         _ => {
             Err(format!("can only call `len` on lists"))
@@ -106,5 +106,5 @@ pub fn type_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSour
             Value::Command{..} => "cmd",
         };
 
-    Ok(eval::new_str(t.to_string()))
+    Ok(value::new_str(t.to_string()))
 }

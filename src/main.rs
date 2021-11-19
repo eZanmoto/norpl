@@ -17,8 +17,9 @@ mod eval;
 use ast::Expr;
 use builtins::fns;
 use builtins::prototypes;
-use eval::Builtins;
-use eval::ScopeStack;
+use eval::value;
+use eval::builtins::Builtins;
+use eval::value::ScopeStack;
 use parser::ProgParser;
 
 #[macro_use]
@@ -35,32 +36,32 @@ fn main() {
     let test = read_test();
 
     let global_bindings = vec![
-        (Expr::Var{name: "panic".to_string()}, eval::new_built_in_func(fns::panic_)),
-        (Expr::Var{name: "print".to_string()}, eval::new_built_in_func(fns::print_)),
-        (Expr::Var{name: "len".to_string()}, eval::new_built_in_func(fns::len_)),
-        (Expr::Var{name: "type".to_string()}, eval::new_built_in_func(fns::type_)),
+        (Expr::Var{name: "panic".to_string()}, value::new_built_in_func(fns::panic_)),
+        (Expr::Var{name: "print".to_string()}, value::new_built_in_func(fns::print_)),
+        (Expr::Var{name: "len".to_string()}, value::new_built_in_func(fns::len_)),
+        (Expr::Var{name: "type".to_string()}, value::new_built_in_func(fns::type_)),
     ];
 
     let std = HashMap::<_, _>::from_iter(IntoIter::new([
         (
             "proc".to_string(),
-            eval::new_object(HashMap::<_, _>::from_iter(IntoIter::new([
+            value::new_object(HashMap::<_, _>::from_iter(IntoIter::new([
                 (
                     "env".to_string(),
-                    eval::new_object(HashMap::<_, _>::from_iter(
+                    value::new_object(HashMap::<_, _>::from_iter(
                         env::vars()
-                            .map(|(k, v)| (k, eval::new_str(v))),
+                            .map(|(k, v)| (k, value::new_str(v))),
                     )),
                 ),
 
                 (
                     "args".to_string(),
-                    eval::new_list(vec![
-                        eval::new_str("--dry-run".to_string()),
-                        eval::new_str("--mirror".to_string()),
-                        eval::new_str("abc".to_string()),
-                        eval::new_str("--mirror".to_string()),
-                        eval::new_str("Aliyun".to_string()),
+                    value::new_list(vec![
+                        value::new_str("--dry-run".to_string()),
+                        value::new_str("--mirror".to_string()),
+                        value::new_str("abc".to_string()),
+                        value::new_str("--mirror".to_string()),
+                        value::new_str("Aliyun".to_string()),
                     ]),
                 ),
             ]))),

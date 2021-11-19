@@ -6,11 +6,11 @@ use std::array::IntoIter;
 use std::collections::HashMap;
 use std::iter::FromIterator;
 
-use crate::eval;
-use crate::eval::List;
-use crate::eval::Prototypes;
-use crate::eval::ValRefWithSource;
-use crate::eval::Value;
+use crate::eval::builtins::Prototypes;
+use crate::eval::value;
+use crate::eval::value::List;
+use crate::eval::value::ValRefWithSource;
+use crate::eval::value::Value;
 
 pub fn prototypes() -> Prototypes {
     Prototypes{
@@ -20,18 +20,18 @@ pub fn prototypes() -> Prototypes {
         strs: HashMap::<_, _>::from_iter(IntoIter::new([
             (
                 "strip_prefix".to_string(),
-                eval::new_built_in_func(strip_prefix_),
+                value::new_built_in_func(strip_prefix_),
             ),
             (
                 "starts_with".to_string(),
-                eval::new_built_in_func(starts_with_),
+                value::new_built_in_func(starts_with_),
             ),
         ])),
 
         lists: HashMap::<_, _>::from_iter(IntoIter::new([
             (
                 "len".to_string(),
-                eval::new_built_in_func(list_len_),
+                value::new_built_in_func(list_len_),
             ),
         ])),
 
@@ -56,7 +56,7 @@ fn strip_prefix_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithS
                             None => unstripped,
                         };
 
-                    Ok(eval::new_str(stripped.to_string()))
+                    Ok(value::new_str(stripped.to_string()))
                 },
                 _ => {
                     Err(format!("the first argument to `strip_prefix` must be a string"))
@@ -78,7 +78,7 @@ fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSo
         Value::Str(s) => {
             match &(*vs[0].lock().unwrap()).v {
                 Value::Str(prefix) => {
-                    Ok(eval::new_bool(s.starts_with(prefix)))
+                    Ok(value::new_bool(s.starts_with(prefix)))
                 },
                 _ => {
                     Err(format!("the first argument to `starts_with` must be a string"))
@@ -98,7 +98,7 @@ fn list_len_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSour
     match &(*this.unwrap().lock().unwrap()).v {
         Value::List(xs) => {
             // TODO Investigate casting `usize` to `i64`.
-            Ok(eval::new_int(xs.len() as i64))
+            Ok(value::new_int(xs.len() as i64))
         },
         _ => {
             // TODO Consider whether to use a `panic!` here.

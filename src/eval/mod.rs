@@ -7,29 +7,17 @@ use std::collections::HashSet;
 use std::process::Command;
 use std::str;
 
-mod value;
-mod builtins;
+pub mod value;
+pub mod builtins;
 
 use ast::*;
-pub use self::builtins::Builtins;
-pub use self::builtins::Prototypes;
-pub use self::value::DeclType;
-pub use self::value::List;
-pub use self::value::new_bool;
-pub use self::value::new_built_in_func;
-pub use self::value::new_int;
-pub use self::value::new_list;
-pub use self::value::new_null;
-pub use self::value::new_object;
-pub use self::value::new_str;
-pub use self::value::new_val_ref;
-pub use self::value::new_val_ref_with_source;
-pub use self::value::Object;
-pub use self::value::Scope;
-pub use self::value::ScopeStack;
-pub use self::value::ValRefWithSource;
-pub use self::value::Value;
-pub use self::value::ValWithSource;
+use self::builtins::Builtins;
+use self::value::DeclType;
+use self::value::List;
+use self::value::ScopeStack;
+use self::value::ValRefWithSource;
+use self::value::Value;
+use self::value::ValWithSource;
 
 pub fn eval_prog(
     scopes: &mut ScopeStack,
