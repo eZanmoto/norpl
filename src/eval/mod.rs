@@ -235,50 +235,22 @@ fn eval_stmt(
                     Err(e) => return Err(e),
                 };
 
-            match &mut (*iter_.lock().unwrap()).v {
-                Value::List(xs) => {
-                    let mut i = 0;
-                    while xs.len() > 0 {
-                        // TODO `lhs.clone()` is being used here because
-                        // `bind_unspread_list` is destructive; this can be updated to
-                        // a reference if this function is updated to be
-                        // non-destructive.
-                        let entry = value::new_list(vec![
-                            value::new_int(i),
-                            xs.remove(0),
-                        ]);
+            let pairs =
+                match value_to_pairs(&(*iter_.lock().unwrap()).v) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
 
-                        let new_bindings = vec![(lhs.clone(), entry)];
+            for (key, value) in pairs {
+                let entry = value::new_list(vec![key, value]);
 
-                        let r = eval_stmts(scopes, new_bindings, builtins, &stmts);
-                        if let Err(e) = r {
-                            return Err(e);
-                        }
+                let new_bindings = vec![(lhs.clone(), entry)];
 
-                        i += 1;
-                    }
-                },
-
-                Value::Object(props) => {
-                    for (key, value) in props {
-                        let entry = value::new_list(vec![
-                            value::new_str(key.to_string()),
-                            value.clone(),
-                        ]);
-
-                        let new_bindings = vec![(lhs.clone(), entry)];
-
-                        let r = eval_stmts(scopes, new_bindings, builtins, &stmts);
-                        if let Err(e) = r {
-                            return Err(e);
-                        }
-                    }
-                },
-
-                _ => {
-                    return Err(format!("iterator must be a list or object"));
-                },
-            };
+                let r = eval_stmts(scopes, new_bindings, builtins, &stmts);
+                if let Err(e) = r {
+                    return Err(e);
+                }
+            }
         },
 
         Stmt::Func{name, args, stmts} => {
@@ -308,6 +280,38 @@ fn eval_stmt(
     }
 
     Ok(None)
+}
+
+// `value_to_pairs` returns the "index, value" pairs in `v`, if `v` represents
+// an "iterable" type.
+fn value_to_pairs(v: &Value)
+    -> Result<Vec<(ValRefWithSource, ValRefWithSource)>, String>
+{
+    let pairs =
+        match v {
+            Value::List(xs) =>
+                xs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, value)| {
+                        // TODO Handle issues caused by casting.
+                        (value::new_int(i as i64), value.clone())
+                    })
+                    .collect(),
+
+            Value::Object(props) =>
+                props
+                    .iter()
+                    .map(|(key, value)| {
+                        (value::new_str(key.to_string()), value.clone())
+                    })
+                    .collect(),
+
+            _ =>
+                return Err(format!("iterator must be a list or object")),
+        };
+
+    Ok(pairs)
 }
 
 fn bind(
