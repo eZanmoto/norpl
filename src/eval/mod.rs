@@ -27,11 +27,7 @@ pub fn eval_prog(
 )
     -> Result<(),String>
 {
-    let ret_val =
-        match eval_stmts(scopes, global_bindings, builtins, stmts) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
+    let ret_val = eval_stmts(scopes, global_bindings, builtins, stmts)?;
 
     if let Some(_) = ret_val {
         return Err(format!("`return` outside function"));
@@ -67,17 +63,13 @@ pub fn eval_stmts(
     let mut inner_scopes = scopes.new_from_push(HashMap::new());
 
     for (lhs, rhs) in new_bindings {
-        let r = bind(&mut inner_scopes, builtins, lhs.clone(), rhs, BindType::VarDeclaration);
-        if let Err(e) = r {
-            return Err(e);
-        }
+        bind(&mut inner_scopes, builtins, lhs.clone(), rhs, BindType::VarDeclaration)?;
     }
 
     for stmt in stmts {
-        match eval_stmt(&mut inner_scopes, builtins, &stmt) {
-            Ok(Some(v)) => return Ok(Some(v)),
-            Err(e) => return Err(e),
-            _ => {},
+        let v = eval_stmt(&mut inner_scopes, builtins, &stmt)?;
+        if let Some(_) = v {
+            return Ok(v);
         }
     }
 
@@ -95,9 +87,7 @@ fn eval_stmt(
 {
     match stmt {
         Stmt::Expr{expr} => {
-            if let Err(e) = eval_expr(scopes, builtins, &expr) {
-                return Err(e);
-            }
+            eval_expr(scopes, builtins, &expr)?;
         },
 
         Stmt::Import{name} => {
@@ -107,25 +97,17 @@ fn eval_stmt(
                     None => return Err(format!("'{}' is not a standard package", name)),
                 };
 
-            let bind_result = bind(
+            bind(
                 scopes,
                 builtins,
                 Expr::Var{name: name.clone()},
                 pkg.clone(),
                 BindType::ConstDeclaration,
-            );
-
-            if let Err(e) = bind_result {
-                return Err(e);
-            }
+            )?;
         },
 
         Stmt::Declare{lhs, rhs, dt} => {
-            let v =
-                match eval_expr(scopes, builtins, &rhs) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let v = eval_expr(scopes, builtins, &rhs)?;
 
             let bt =
                 match dt {
@@ -134,59 +116,33 @@ fn eval_stmt(
                 };
 
             // TODO Consider whether `clone()` can be avoided here.
-            if let Err(e) = bind(scopes, builtins, lhs.clone(), v, bt) {
-                return Err(e);
-            }
+            bind(scopes, builtins, lhs.clone(), v, bt)?;
         },
 
         Stmt::Assign{lhs, rhs} => {
-            let v =
-                match eval_expr(scopes, builtins, &rhs) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let v = eval_expr(scopes, builtins, &rhs)?;
 
             // TODO Consider whether `clone()` can be avoided here.
-            if let Err(e) = bind(scopes, builtins, lhs.clone(), v, BindType::Assignment) {
-                return Err(e);
-            }
+            bind(scopes, builtins, lhs.clone(), v, BindType::Assignment)?;
         },
 
         Stmt::OpAssign{lhs, op, rhs} => {
-            let lhs =
-                match eval_expr(scopes, builtins, &lhs) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let lhs = eval_expr(scopes, builtins, &lhs)?;
 
-            let rhs =
-                match eval_expr(scopes, builtins, &rhs) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let rhs = eval_expr(scopes, builtins, &rhs)?;
 
             let result = apply_binary_operation(
                 &op,
                 &lhs.lock().unwrap().v,
                 &rhs.lock().unwrap().v,
-            );
+            )?;
 
-            let v_ =
-                match result {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
-
-            (*lhs.lock().unwrap()).v = v_;
+            (*lhs.lock().unwrap()).v = result;
         },
 
         Stmt::If{branches, else_stmts} => {
             for Branch{cond, stmts} in branches {
-                let cond =
-                    match eval_expr(scopes, builtins, &cond) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    };
+                let cond = eval_expr(scopes, builtins, &cond)?;
 
                 let b =
                     match (*cond.lock().unwrap()).v {
@@ -206,11 +162,7 @@ fn eval_stmt(
 
         Stmt::While{cond, stmts} => {
             loop {
-                let cond =
-                    match eval_expr(scopes, builtins, &cond) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    };
+                let cond = eval_expr(scopes, builtins, &cond)?;
 
                 let b =
                     match (*cond.lock().unwrap()).v {
@@ -222,56 +174,36 @@ fn eval_stmt(
                     break;
                 }
 
-                if let Err(e) = eval_stmts_in_new_scope(scopes, builtins, &stmts) {
-                    return Err(e);
-                }
+                eval_stmts_in_new_scope(scopes, builtins, &stmts)?;
             }
         },
 
         Stmt::For{lhs, iter, stmts} => {
-            let iter_ =
-                match eval_expr(scopes, builtins, &iter) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let iter_ = eval_expr(scopes, builtins, &iter)?;
 
-            let pairs =
-                match value_to_pairs(&(*iter_.lock().unwrap()).v) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let pairs = value_to_pairs(&(*iter_.lock().unwrap()).v)?;
 
             for (key, value) in pairs {
                 let entry = value::new_list(vec![key, value]);
 
                 let new_bindings = vec![(lhs.clone(), entry)];
 
-                let r = eval_stmts(scopes, new_bindings, builtins, &stmts);
-                if let Err(e) = r {
-                    return Err(e);
-                }
+                eval_stmts(scopes, new_bindings, builtins, &stmts)?;
             }
         },
 
         Stmt::Func{name, args, stmts} => {
             let closure = scopes.clone();
-            let r = bind_name(
+            bind_name(
                 scopes,
                 name.clone(),
                 value::new_func(args.clone(), stmts.clone(), closure),
                 BindType::VarDeclaration,
-            );
-            if let Err(e) = r {
-                return Err(e);
-            }
+            )?;
         },
 
         Stmt::Return{expr} => {
-            let v =
-                match eval_expr(scopes, builtins, expr) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let v = eval_expr(scopes, builtins, expr)?;
 
             return Ok(Some(v));
         },
@@ -358,48 +290,32 @@ fn bind_(
                 return Err(format!("can't assign to safe index"));
             }
 
-            match eval_expr(scopes, builtins, &expr) {
-                Ok(value) => {
-                    match &mut (*value.lock().unwrap()).v {
-                        Value::List(xs) => {
-                            match eval_expr(scopes, builtins, &location) {
-                                Ok(index) => {
-                                    match &(*index.lock().unwrap()).v {
-                                        Value::Int(n) => {
-                                            // TODO Handle out-of-bounds
-                                            // assignment.
-                                            xs[*n as usize] = rhs;
-                                        },
-                                        _ => return Err(format!("index must be an integer")),
-                                    }
-                                },
-                                Err(e) => {
-                                    return Err(e);
-                                },
-                            };
+            let value = eval_expr(scopes, builtins, &expr)?;
+            match &mut (*value.lock().unwrap()).v {
+                Value::List(xs) => {
+                    let index = eval_expr(scopes, builtins, &location)?;
+                    match &(*index.lock().unwrap()).v {
+                        Value::Int(n) => {
+                            // TODO Handle out-of-bounds
+                            // assignment.
+                            xs[*n as usize] = rhs;
                         },
-
-                        Value::Object(props) => {
-                            match eval_expr(scopes, builtins, &location) {
-                                Ok(index) => {
-                                    match &(*index.lock().unwrap()).v {
-                                        Value::Str(s) => {
-                                            props.insert(s.to_string(), rhs);
-                                        },
-                                        _ => return Err(format!("index must be an integer")),
-                                    }
-                                },
-                                Err(e) => {
-                                    return Err(e);
-                                },
-                            };
-                        },
-
-                        _ => return Err(format!("can only assign to indices of lists and objects")),
-                    }
+                        _ => return Err(format!("index must be an integer")),
+                    };
                 },
-                Err(e) => return Err(e),
-            };
+
+                Value::Object(props) => {
+                    let index = eval_expr(scopes, builtins, &location)?;
+                    match &(*index.lock().unwrap()).v {
+                        Value::Str(s) => {
+                            props.insert(s.to_string(), rhs);
+                        },
+                        _ => return Err(format!("index must be an integer")),
+                    };
+                },
+
+                _ => return Err(format!("can only assign to indices of lists and objects")),
+            }
 
             Ok(())
         },
@@ -409,14 +325,10 @@ fn bind_(
                 return Err(format!("can't assign to prototype properties"));
             }
 
-            match eval_expr(scopes, builtins, &expr) {
-                Ok(value) => {
-                    match &mut (*value.lock().unwrap()).v {
-                        Value::Object(props) => props.insert(name, rhs),
-                        _ => return Err(format!("can only assign to properties of objects")),
-                    }
-                },
-                Err(e) => return Err(e),
+            let value = eval_expr(scopes, builtins, &expr)?;
+            match &mut (*value.lock().unwrap()).v {
+                Value::Object(props) => props.insert(name, rhs),
+                _ => return Err(format!("can only assign to properties of objects")),
             };
 
             Ok(())
@@ -486,16 +398,11 @@ fn bind_name_(
     }
     already_declared.insert(name.clone());
 
-    let result =
-        match bind_type {
-            BindType::Assignment => scopes.assign(name.clone(), rhs),
-            BindType::ConstDeclaration => scopes.declare(name, rhs, DeclType::Const),
-            BindType::VarDeclaration => scopes.declare(name, rhs, DeclType::Var),
-        };
-
-    if let Err(e) = result {
-        return Err(e);
-    }
+    match bind_type {
+        BindType::Assignment => scopes.assign(name.clone(), rhs),
+        BindType::ConstDeclaration => scopes.declare(name, rhs, DeclType::Const),
+        BindType::VarDeclaration => scopes.declare(name, rhs, DeclType::Var),
+    }?;
 
     Ok(())
 }
@@ -551,9 +458,7 @@ fn bind_unspread_list(
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = bind_(scopes, builtins, &mut already_declared, expr, rhs, bt) {
-            return Err(e);
-        }
+        bind_(scopes, builtins, &mut already_declared, expr, rhs, bt)?;
     }
 
     match unspread_expr {
@@ -585,9 +490,7 @@ fn bind_exact_list(
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        if let Err(e) = bind_(scopes, builtins, &mut already_declared, expr, rhs, bt) {
-            return Err(e);
-        }
+        bind_(scopes, builtins, &mut already_declared, expr, rhs, bt)?;
     }
 
     Ok(())
@@ -655,17 +558,11 @@ fn bind_object(
                 }
             },
             PropItem::Pair{name, value: new_lhs} => {
+                let v = eval_expr(scopes, builtins, &name)?;
                 let prop_name =
-                    match eval_expr(scopes, builtins, &name) {
-                        Ok(v) => {
-                            match &(*v.lock().unwrap()).v {
-                                Value::Str(s) => s.clone(),
-                                _ => return Err(format!("property key must be a string")),
-                            }
-                        },
-                        Err(e) => {
-                            return Err(e);
-                        },
+                    match &(*v.lock().unwrap()).v {
+                        Value::Str(s) => s.clone(),
+                        _ => return Err(format!("property key must be a string")),
                     };
 
                 rhs_keys.remove(&prop_name);
@@ -694,17 +591,12 @@ fn bind_object_pair(
 )
     -> Result<(),String>
 {
+    let value = eval_expr(scopes, builtins, item_name)?;
+
     let name =
-        match eval_expr(scopes, builtins, item_name) {
-            Ok(v) => {
-                match &(*v.lock().unwrap()).v {
-                    Value::Str(s) => s.clone(),
-                    _ => return Err(format!("property key must be a string")),
-                }
-            },
-            Err(e) => {
-                return Err(e);
-            },
+        match &(*value.lock().unwrap()).v {
+            Value::Str(s) => s.clone(),
+            _ => return Err(format!("property key must be a string")),
         };
 
     let new_rhs =
@@ -738,18 +630,14 @@ fn eval_expr(
             let mut vals = vec![];
 
             for item in xs {
-                let v =
-                    match eval_expr(scopes, builtins, &item.expr) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    };
+                let value = eval_expr(scopes, builtins, &item.expr)?;
 
                 if !item.is_spread {
-                    vals.push(v);
+                    vals.push(value);
                     continue;
                 }
 
-                match &(*v.lock().unwrap()).v {
+                match &(*value.lock().unwrap()).v {
                     Value::List(xs) => {
                         for x in xs {
                             vals.push(x.clone());
@@ -765,30 +653,20 @@ fn eval_expr(
         },
 
         Expr::Range{start, end} => {
+            let start_value = eval_expr(scopes, builtins, start)?;
+
             let start =
-                match eval_expr(scopes, builtins, start) {
-                    Ok(v) => {
-                        match (*v.lock().unwrap()).v {
-                            Value::Int(n) => n,
-                            _ => return Err(format!("range end must be an integer")),
-                        }
-                    },
-                    Err(e) => {
-                        return Err(e);
-                    },
+                match (*start_value.lock().unwrap()).v {
+                    Value::Int(n) => n,
+                    _ => return Err(format!("range end must be an integer")),
                 };
 
+            let end_value = eval_expr(scopes, builtins, end)?;
+
             let end =
-                match eval_expr(scopes, builtins, end) {
-                    Ok(v) => {
-                        match (*v.lock().unwrap()).v {
-                            Value::Int(n) => n,
-                            _ => return Err(format!("range end must be an integer")),
-                        }
-                    },
-                    Err(e) => {
-                        return Err(e);
-                    },
+                match (*end_value.lock().unwrap()).v {
+                    Value::Int(n) => n,
+                    _ => return Err(format!("range end must be an integer")),
                 };
 
             let range =
@@ -800,251 +678,189 @@ fn eval_expr(
         },
 
         Expr::Index{expr, location, safe} => {
-            match eval_expr(scopes, builtins, expr) {
-                Ok(source) => {
-                    match &(*source.lock().unwrap()).v {
-                        Value::List(xs) => {
-                            match eval_expr(scopes, builtins, location) {
-                                Ok(v) => {
-                                    match &(*v.lock().unwrap()).v {
-                                        Value::Int(n) => {
-                                            if *safe {
-                                                let v =
-                                                    match xs.get(*n as usize) {
-                                                        Some(v) => value::new_list(vec![
-                                                            v.clone(),
-                                                            value::new_bool(true),
-                                                        ]),
-                                                        None => value::new_list(vec![
-                                                            value::new_null(),
-                                                            value::new_bool(false),
-                                                        ]),
-                                                    };
+            let source = eval_expr(scopes, builtins, expr)?;
+            match &(*source.lock().unwrap()).v {
+                Value::List(xs) => {
+                    let v = eval_expr(scopes, builtins, location)?;
+                    match &(*v.lock().unwrap()).v {
+                        Value::Int(n) => {
+                            if *safe {
+                                let v =
+                                    match xs.get(*n as usize) {
+                                        Some(v) => value::new_list(vec![
+                                            v.clone(),
+                                            value::new_bool(true),
+                                        ]),
+                                        None => value::new_list(vec![
+                                            value::new_null(),
+                                            value::new_bool(false),
+                                        ]),
+                                    };
 
-                                                return Ok(v);
-                                            } else {
-                                                match xs.get(*n as usize) {
-                                                    Some(v) => return Ok(v.clone()),
-                                                    None => return Err(format!("index out of bounds")),
-                                                };
-                                            }
-                                        },
-                                        _ => return Err(format!("index must be an integer")),
-                                    }
-                                },
-                                Err(e) => {
-                                    return Err(e);
-                                },
+                                return Ok(v);
+                            } else {
+                                match xs.get(*n as usize) {
+                                    Some(v) => return Ok(v.clone()),
+                                    None => return Err(format!("index out of bounds")),
+                                };
                             }
                         },
+                        _ => return Err(format!("index must be an integer")),
+                    };
+                },
 
-                        Value::Object(props) => {
-                            match eval_expr(scopes, builtins, location) {
-                                Ok(v) => {
-                                    match &(*v.lock().unwrap()).v {
-                                        Value::Str(name) => {
-                                            if *safe {
-                                                let v =
-                                                    match props.get(name) {
-                                                        Some(v) => {
-                                                            let prop_val = &(*v.lock().unwrap()).v;
-                                                            value::new_list(vec![
-                                                                value::new_val_ref_with_source(
-                                                                    prop_val.clone(),
-                                                                    source.clone(),
-                                                                ),
-                                                                value::new_bool(true),
-                                                            ])
-                                                        },
-                                                        None => {
-                                                            value::new_list(vec![
-                                                                value::new_null(),
-                                                                value::new_bool(false),
-                                                            ])
-                                                        }
-                                                    };
-
-                                                return Ok(v);
-                                            } else {
-                                                match props.get(name) {
-                                                    Some(v) => {
-                                                        let prop_val = &(*v.lock().unwrap()).v;
-                                                        return Ok(value::new_val_ref_with_source(
-                                                            prop_val.clone(),
-                                                            source.clone(),
-                                                        ));
-                                                    },
-                                                    None => {
-                                                        return Err(format!("property name '{}' not found", name));
-                                                    },
-                                                };
-                                            }
+                Value::Object(props) => {
+                    let v = eval_expr(scopes, builtins, location)?;
+                    match &(*v.lock().unwrap()).v {
+                        Value::Str(name) => {
+                            if *safe {
+                                let v =
+                                    match props.get(name) {
+                                        Some(v) => {
+                                            let prop_val = &(*v.lock().unwrap()).v;
+                                            value::new_list(vec![
+                                                value::new_val_ref_with_source(
+                                                    prop_val.clone(),
+                                                    source.clone(),
+                                                ),
+                                                value::new_bool(true),
+                                            ])
                                         },
-                                        _ => return Err(format!("property name must be a string")),
-                                    }
-                                },
-                                Err(e) => {
-                                    return Err(e);
-                                },
+                                        None => {
+                                            value::new_list(vec![
+                                                value::new_null(),
+                                                value::new_bool(false),
+                                            ])
+                                        }
+                                    };
+
+                                return Ok(v);
+                            } else {
+                                match props.get(name) {
+                                    Some(v) => {
+                                        let prop_val = &(*v.lock().unwrap()).v;
+                                        return Ok(value::new_val_ref_with_source(
+                                            prop_val.clone(),
+                                            source.clone(),
+                                        ));
+                                    },
+                                    None => {
+                                        return Err(format!("property name '{}' not found", name));
+                                    },
+                                };
                             }
                         },
+                        _ => return Err(format!("property name must be a string")),
+                    };
+                },
 
-                        _ => return Err(format!("can only index lists and objects")),
-                    }
-                },
-                Err(e) => {
-                    return Err(e);
-                },
+                _ => return Err(format!("can only index lists and objects")),
             };
         },
 
         Expr::IndexRange{expr, start: maybe_start, end: maybe_end} => {
-            match eval_expr(scopes, builtins, expr) {
-                Ok(source) => {
-                    match &(*source.lock().unwrap()).v {
-                        Value::List(xs) => {
-                            if let Some(start) = maybe_start {
-                                match eval_expr(scopes, builtins, start) {
-                                    Ok(v) => {
-                                        match &(*v.lock().unwrap()).v {
-                                            Value::Int(start) => {
-                                                if let Some(end) = maybe_end {
-                                                    match eval_expr(scopes, builtins, end) {
-                                                        Ok(v) => {
-                                                            match &(*v.lock().unwrap()).v {
-                                                                Value::Int(end) => {
-                                                                    return get_index_range(
-                                                                        xs,
-                                                                        Some(*start as usize),
-                                                                        Some(*end as usize),
-                                                                    );
-                                                                },
-                                                                _ => return Err(format!("index must be an integer")),
-                                                            }
-                                                        },
-                                                        Err(e) => {
-                                                            return Err(e);
-                                                        },
-                                                    }
-                                                }
-
-                                                return get_index_range(xs, Some(*start as usize), None);
-                                            },
-                                            _ => return Err(format!("index must be an integer")),
-                                        }
-                                    },
-                                    Err(e) => {
-                                        return Err(e);
-                                    },
+            let source = eval_expr(scopes, builtins, expr)?;
+            match &(*source.lock().unwrap()).v {
+                Value::List(xs) => {
+                    if let Some(start) = maybe_start {
+                        let v = eval_expr(scopes, builtins, start)?;
+                        match &(*v.lock().unwrap()).v {
+                            Value::Int(start) => {
+                                if let Some(end) = maybe_end {
+                                    let v = eval_expr(scopes, builtins, end)?;
+                                    match &(*v.lock().unwrap()).v {
+                                        Value::Int(end) => {
+                                            return get_index_range(
+                                                xs,
+                                                Some(*start as usize),
+                                                Some(*end as usize),
+                                            );
+                                        },
+                                        _ => return Err(format!("index must be an integer")),
+                                    };
                                 }
-                            }
 
-                            if let Some(end) = maybe_end {
-                                match eval_expr(scopes, builtins, end) {
-                                    Ok(v) => {
-                                        match &(*v.lock().unwrap()).v {
-                                            Value::Int(end) => {
-                                                return get_index_range(xs, None, Some(*end as usize));
-                                            },
-                                            _ => return Err(format!("index must be an integer")),
-                                        }
-                                    },
-                                    Err(e) => {
-                                        return Err(e);
-                                    },
-                                }
-                            }
-                            return get_index_range(xs, None, None);
-                        },
-
-                        _ => return Err(format!("can only index range lists")),
+                                return get_index_range(xs, Some(*start as usize), None);
+                            },
+                            _ => return Err(format!("index must be an integer")),
+                        };
                     }
+
+                    if let Some(end) = maybe_end {
+                        let v = eval_expr(scopes, builtins, end)?;
+                        match &(*v.lock().unwrap()).v {
+                            Value::Int(end) => {
+                                return get_index_range(xs, None, Some(*end as usize));
+                            },
+                            _ => return Err(format!("index must be an integer")),
+                        };
+                    }
+                    return get_index_range(xs, None, None);
                 },
-                Err(e) => {
-                    return Err(e);
-                },
+
+                _ => return Err(format!("can only index range lists")),
             };
         },
 
         Expr::Prop{expr, name, prototype} => {
-            match eval_expr(scopes, builtins, expr) {
-                Ok(value) => {
-                    if *prototype {
-                        let proto = builtins.prototypes.prototype_for(
-                            &(*value.lock().unwrap()).v,
-                        );
+            let value = eval_expr(scopes, builtins, expr)?;
+            if *prototype {
+                let proto_props = builtins.prototypes.prototype_for(
+                    &(*value.lock().unwrap()).v,
+                )?;
 
-                        let proto_props =
-                            match proto {
-                                Ok(v) => v,
-                                Err(e) => return Err(e),
-                            };
+                match proto_props.get(name) {
+                    Some(v) => {
+                        let proto_prop_val = &(*v.lock().unwrap()).v;
 
-                        match proto_props.get(name) {
+                        Ok(value::new_val_ref_with_source(
+                            proto_prop_val.clone(),
+                            value.clone(),
+                        ))
+                    },
+                    None => {
+                        Err(format!("property name '{}' not found", name))
+                    },
+                }
+            } else {
+                match &(*value.lock().unwrap()).v {
+                    Value::Object(props) => {
+                        match props.get(name) {
                             Some(v) => {
-                                let proto_prop_val = &(*v.lock().unwrap()).v;
+                                let prop_val = &(*v.lock().unwrap()).v;
 
                                 Ok(value::new_val_ref_with_source(
-                                    proto_prop_val.clone(),
-                                    value.clone(),
+                                    prop_val.clone(),
+                                    v.clone(),
                                 ))
                             },
                             None => {
                                 Err(format!("property name '{}' not found", name))
                             },
                         }
-                    } else {
-                        match &(*value.lock().unwrap()).v {
-                            Value::Object(props) => {
-                                match props.get(name) {
-                                    Some(v) => {
-                                        let prop_val = &(*v.lock().unwrap()).v;
+                    },
 
-                                        Ok(value::new_val_ref_with_source(
-                                            prop_val.clone(),
-                                            v.clone(),
-                                        ))
-                                    },
-                                    None => {
-                                        Err(format!("property name '{}' not found", name))
-                                    },
-                                }
-                            },
-
-                            _ => return Err(format!("can only access properties of objects")),
-                        }
-                    }
-                },
-                Err(e) => {
-                    return Err(e);
-                },
+                    _ => return Err(format!("can only access properties of objects")),
+                }
             }
         },
 
         Expr::Subcommand{expr, name} => {
-            match eval_expr(scopes, builtins, expr) {
-                Ok(object) => {
-                    match &(*object.lock().unwrap()).v {
-                        Value::Str(prog) => {
-                            let args = vec![name.clone()];
-
-                            Ok(value::new_command(prog.clone(), args))
-                        },
-
-                        Value::Command{prog, args} => {
-                            let mut args_ = args.clone();
-                            args_.push(name.clone());
-
-                            Ok(value::new_command(prog.clone(), args_))
-                        },
-
-                        _ => return Err(format!("can only add subcommands to strings and commands")),
-                    }
+            let object = eval_expr(scopes, builtins, expr)?;
+            match &(*object.lock().unwrap()).v {
+                Value::Str(prog) => {
+                    let args = vec![name.clone()];
+                    return Ok(value::new_command(prog.clone(), args))
                 },
-                Err(e) => {
-                    return Err(e);
+
+                Value::Command{prog, args} => {
+                    let mut args_ = args.clone();
+                    args_.push(name.clone());
+                    return Ok(value::new_command(prog.clone(), args_))
                 },
-            }
+
+                _ => return Err(format!("can only add subcommands to strings and commands")),
+            };
         },
 
         Expr::Object{props} => {
@@ -1053,24 +869,14 @@ fn eval_expr(
             for prop in props {
                 match prop {
                     PropItem::Pair{name, value} => {
+                        let key_value = eval_expr(scopes, builtins, &name)?;
                         let k =
-                            match eval_expr(scopes, builtins, &name) {
-                                Ok(v) => {
-                                    match &(*v.lock().unwrap()).v {
-                                        Value::Str(s) => s.clone(),
-                                        _ => return Err(format!("property key must be a string")),
-                                    }
-                                },
-                                Err(e) => {
-                                    return Err(e);
-                                },
+                            match &(*key_value.lock().unwrap()).v {
+                                Value::Str(s) => s.clone(),
+                                _ => return Err(format!("property key must be a string")),
                             };
 
-                        let v =
-                            match eval_expr(scopes, builtins, &value) {
-                                Ok(v) => v,
-                                Err(e) => return Err(e),
-                            };
+                        let v = eval_expr(scopes, builtins, &value)?;
 
                         vals.insert(k, v);
                     },
@@ -1080,11 +886,7 @@ fn eval_expr(
                         }
 
                         if *is_spread {
-                            let v =
-                                match eval_expr(scopes, builtins, &expr) {
-                                    Ok(v) => v,
-                                    Err(e) => return Err(e),
-                                };
+                            let v = eval_expr(scopes, builtins, &expr)?;
 
                             match &(*v.lock().unwrap()).v {
                                 Value::Object(props) => {
@@ -1119,17 +921,9 @@ fn eval_expr(
         },
 
         Expr::UnaryOp{op, expr} => {
-            let v =
-                match eval_expr(scopes, builtins, &*expr) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let v = eval_expr(scopes, builtins, &*expr)?;
 
-            let result =
-                match apply_unary_operation(op, &v.lock().unwrap().v) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let result = apply_unary_operation(op, &v.lock().unwrap().v)?;
 
             Ok(value::new_val_ref(result))
         },
@@ -1139,23 +933,17 @@ fn eval_expr(
 
             let mut vals = vec![];
             for expr in exprs {
-                match eval_expr(scopes, builtins, &*expr) {
-                    Ok(v) => vals.push(v),
-                    Err(e) => return Err(e),
-                }
+                let v = eval_expr(scopes, builtins, &*expr)?;
+                vals.push(v);
             }
 
             let v =
                 if let [lhs, rhs] = vals.as_slice() {
-                    let result = apply_binary_operation(
+                    apply_binary_operation(
                         op,
                         &lhs.lock().unwrap().v,
                         &rhs.lock().unwrap().v,
-                    );
-                    match result {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    }
+                    )?
                 } else {
                     return Err(format!("dev error: unexpected slice size"));
                 };
@@ -1174,90 +962,75 @@ fn eval_expr(
         },
 
         Expr::Call{expr, args} => {
-            let vals =
-                match eval_exprs(scopes, builtins, &args) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let vals = eval_exprs(scopes, builtins, &args)?;
+
+            let value = eval_expr(scopes, builtins, &expr)?;
 
             let v =
-                match eval_expr(scopes, builtins, &expr) {
-                    Ok(value) => {
-                        let ValWithSource{v, source} = &*value.lock().unwrap();
-                        match v {
-                            Value::BuiltInFunc{f} => {
-                                let this =
-                                    match source {
-                                        Some(v) => Some(v.clone()),
-                                        None => None,
-                                    };
+                {
+                    let ValWithSource{v, source} = &*value.lock().unwrap();
+                    match v {
+                        Value::BuiltInFunc{f} => {
+                            let this =
+                                match source {
+                                    Some(v) => Some(v.clone()),
+                                    None => None,
+                                };
 
-                                CallBinding::BuiltInFunc{
-                                    f: f.clone(),
-                                    this,
-                                    args: vals,
-                                }
-                            },
+                            CallBinding::BuiltInFunc{
+                                f: f.clone(),
+                                this,
+                                args: vals,
+                            }
+                        },
 
-                            Value::Func{args: arg_names, stmts, closure} => {
-                                let mut bindings: Vec<(Expr, ValRefWithSource)> =
-                                    arg_names
-                                        .clone()
-                                        .into_iter()
-                                        .zip(vals)
-                                        .collect();
+                        Value::Func{args: arg_names, stmts, closure} => {
+                            let mut bindings: Vec<(Expr, ValRefWithSource)> =
+                                arg_names
+                                    .clone()
+                                    .into_iter()
+                                    .zip(vals)
+                                    .collect();
 
-                                // TODO Consider whether to add `this` as
-                                // `null` in the case where `source` is `None`.
-                                if let Some(this) = source {
-                                    // TODO Consider how to avoid creating a
-                                    // new AST variable node here.
-                                    bindings.push((
-                                        Expr::Var{name: "this".to_string()},
-                                        this.clone(),
-                                    ));
-                                }
+                            // TODO Consider whether to add `this` as
+                            // `null` in the case where `source` is `None`.
+                            if let Some(this) = source {
+                                // TODO Consider how to avoid creating a
+                                // new AST variable node here.
+                                bindings.push((
+                                    Expr::Var{name: "this".to_string()},
+                                    this.clone(),
+                                ));
+                            }
 
-                                CallBinding::Func{
-                                    bindings,
-                                    closure: closure.clone(),
-                                    stmts: stmts.clone(),
-                                }
-                            },
+                            CallBinding::Func{
+                                bindings,
+                                closure: closure.clone(),
+                                stmts: stmts.clone(),
+                            }
+                        },
 
-                            _ => return Err(format!("can only call functions")),
-                        }
-                    },
-                    Err(e) => return Err(e),
+                        _ => return Err(format!("can only call functions")),
+                    }
                 };
 
             let v =
                 match v {
                     CallBinding::BuiltInFunc{f, this, args} => {
-                        match f(this, args) {
-                            Ok(v) => v,
-                            Err(e) => return Err(e),
-                        }
+                        f(this, args)?
                     },
 
                     CallBinding::Func{bindings, closure, stmts} => {
-                        let r = eval_stmts(
+                        let ret_val = eval_stmts(
                             &mut closure.clone(),
                             bindings,
                             builtins,
                             &stmts,
-                        );
+                        )?;
 
-                        match r {
-                            Ok(ret_val) => {
-                                match ret_val {
-                                    Some(v) => v,
-                                    None => value::new_null(),
-                                }
-                            },
-                            Err(e) => {
-                                return Err(e);
-                            },
+                        match ret_val {
+                            Some(v) => v,
+                            None => value::new_null(),
                         }
                     },
                 };
@@ -1266,45 +1039,40 @@ fn eval_expr(
         },
 
         Expr::Spawn{expr, args} => {
-            let vals =
-                match eval_exprs(scopes, builtins, &args) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                };
+            let vals = eval_exprs(scopes, builtins, &args)?;
+
+            let value = eval_expr(scopes, builtins, &expr)?;
 
             let (prog, args) =
-                match eval_expr(scopes, builtins, &expr) {
-                    Ok(value) => {
-                        let ValWithSource{v, ..} = &*value.lock().unwrap();
-                        match v {
-                            Value::Str(prog) => {
-                                let mut args = vec![];
-                                for val in vals {
-                                    match &(*val.lock().unwrap()).v {
-                                        Value::Str(s) => args.push(s.clone()),
-                                        _ => return Err(format!("program arguments must be strings")),
-                                    }
+                {
+                    let ValWithSource{v, ..} = &*value.lock().unwrap();
+                    match v {
+                        Value::Str(prog) => {
+                            let mut args = vec![];
+                            for val in vals {
+                                match &(*val.lock().unwrap()).v {
+                                    Value::Str(s) => args.push(s.clone()),
+                                    _ => return Err(format!("program arguments must be strings")),
                                 }
+                            }
 
-                                (prog.clone(), args)
-                            },
+                            (prog.clone(), args)
+                        },
 
-                            Value::Command{prog, args} => {
-                                let mut args_ = args.clone();
-                                for val in vals {
-                                    match &(*val.lock().unwrap()).v {
-                                        Value::Str(s) => args_.push(s.clone()),
-                                        _ => return Err(format!("program arguments must be strings")),
-                                    }
+                        Value::Command{prog, args} => {
+                            let mut args_ = args.clone();
+                            for val in vals {
+                                match &(*val.lock().unwrap()).v {
+                                    Value::Str(s) => args_.push(s.clone()),
+                                    _ => return Err(format!("program arguments must be strings")),
                                 }
+                            }
 
-                                (prog.clone(), args_)
-                            },
+                            (prog.clone(), args_)
+                        },
 
-                            _ => return Err(format!("can only spawn strings or commands")),
-                        }
-                    },
-                    Err(e) => return Err(e),
+                        _ => return Err(format!("can only spawn strings or commands")),
+                    }
                 };
 
             let mut cmd = Command::new(prog);
@@ -1393,10 +1161,8 @@ pub fn eval_exprs(
     let mut vals = vec![];
 
     for expr in exprs {
-        match eval_expr(scopes, builtins, &expr) {
-            Ok(v) => vals.push(v),
-            Err(e) => return Err(e),
-        }
+        let v = eval_expr(scopes, builtins, &expr)?;
+        vals.push(v);
     }
 
     Ok(vals)
