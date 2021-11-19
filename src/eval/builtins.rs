@@ -21,21 +21,19 @@ pub struct Prototypes {
 }
 
 impl Prototypes {
-    pub fn prototype_for(&self, v: &Value) -> Result<Object, String> {
+    pub fn prototype_for<'a>(&'a self, v: &Value) -> Result<&'a Object, String> {
         let proto =
             match v {
-                // TODO Use references instead of `clone()`s.
+                Value::Bool{..} => &self.bools,
+                Value::Int{..} => &self.ints,
+                Value::Str{..} => &self.strs,
+                Value::List{..} => &self.lists,
+                Value::Object{..} => &self.objects,
 
-                Value::Bool{..} => self.bools.clone(),
-                Value::Int{..} => self.ints.clone(),
-                Value::Str{..} => self.strs.clone(),
-                Value::List{..} => self.lists.clone(),
-                Value::Object{..} => self.objects.clone(),
+                Value::BuiltInFunc{..} => &self.funcs,
+                Value::Func{..} => &self.funcs,
 
-                Value::BuiltInFunc{..} => self.funcs.clone(),
-                Value::Func{..} => self.funcs.clone(),
-
-                Value::Command{..} => self.commands.clone(),
+                Value::Command{..} => &self.commands,
 
                 Value::Null => {
                     return Err(format!("`null` doesn't have an associated prototype"));
