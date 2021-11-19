@@ -346,19 +346,19 @@ fn bind_(
         },
 
         // TODO Investigate binding to index ranges.
-        Expr::IndexRange{..} => return Err(format!("cannot bind to an index range")),
+        Expr::IndexRange{..} => Err(format!("cannot bind to an index range")),
 
-        Expr::Range{..} => return Err(format!("cannot bind to a range")),
-        Expr::Null => return Err(format!("cannot bind to `null`")),
-        Expr::Bool{..} => return Err(format!("cannot bind to a boolean literal")),
-        Expr::Int{..} => return Err(format!("cannot bind to an integer literal")),
-        Expr::Str{..} => return Err(format!("cannot bind to a string literal")),
-        Expr::Subcommand{..} => return Err(format!("cannot bind to a subcommand")),
-        Expr::UnaryOp{..} => return Err(format!("cannot bind to a unary operation")),
-        Expr::BinaryOp{..} => return Err(format!("cannot bind to a binary operation")),
-        Expr::Func{..} => return Err(format!("cannot bind to a function literal")),
-        Expr::Call{..} => return Err(format!("cannot bind to a function call")),
-        Expr::Spawn{..} => return Err(format!("cannot bind to a command spawn")),
+        Expr::Range{..} => Err(format!("cannot bind to a range")),
+        Expr::Null => Err(format!("cannot bind to `null`")),
+        Expr::Bool{..} => Err(format!("cannot bind to a boolean literal")),
+        Expr::Int{..} => Err(format!("cannot bind to an integer literal")),
+        Expr::Str{..} => Err(format!("cannot bind to a string literal")),
+        Expr::Subcommand{..} => Err(format!("cannot bind to a subcommand")),
+        Expr::UnaryOp{..} => Err(format!("cannot bind to a unary operation")),
+        Expr::BinaryOp{..} => Err(format!("cannot bind to a binary operation")),
+        Expr::Func{..} => Err(format!("cannot bind to a function literal")),
+        Expr::Call{..} => Err(format!("cannot bind to a function call")),
+        Expr::Spawn{..} => Err(format!("cannot bind to a command spawn")),
     }
 }
 
@@ -425,10 +425,15 @@ fn bind_list(
     }
 
     let ListItem{is_unspread, ..} = lhs[lhs.len()-1];
-    if is_unspread {
-        return bind_unspread_list(scopes, builtins, &mut already_declared, lhs, rhs, bt);
-    }
-    return bind_exact_list(scopes, builtins, &mut already_declared, lhs, rhs, bt);
+
+    let bind_list_f =
+        if is_unspread {
+            bind_unspread_list
+        } else {
+            bind_exact_list
+        };
+
+    bind_list_f(scopes, builtins, &mut already_declared, lhs, rhs, bt)
 }
 
 fn bind_unspread_list(
@@ -840,7 +845,7 @@ fn eval_expr(
                         }
                     },
 
-                    _ => return Err(format!("can only access properties of objects")),
+                    _ => Err(format!("can only access properties of objects")),
                 }
             }
         },
@@ -850,13 +855,13 @@ fn eval_expr(
             match &(*object.lock().unwrap()).v {
                 Value::Str(prog) => {
                     let args = vec![name.clone()];
-                    return Ok(value::new_command(prog.clone(), args))
+                    return Ok(value::new_command(prog.clone(), args));
                 },
 
                 Value::Command{prog, args} => {
                     let mut args_ = args.clone();
                     args_.push(name.clone());
-                    return Ok(value::new_command(prog.clone(), args_))
+                    return Ok(value::new_command(prog.clone(), args_));
                 },
 
                 _ => return Err(format!("can only add subcommands to strings and commands")),
