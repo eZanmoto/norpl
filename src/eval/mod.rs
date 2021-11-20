@@ -359,6 +359,7 @@ fn bind_(
         Expr::Func{..} => Err(format!("cannot bind to a function literal")),
         Expr::Call{..} => Err(format!("cannot bind to a function call")),
         Expr::Spawn{..} => Err(format!("cannot bind to a command spawn")),
+        Expr::Catch{..} => Err(format!("cannot bind to a catch")),
     }
 }
 
@@ -868,6 +869,17 @@ fn eval_expr(
             };
         },
 
+        Expr::Catch{expr} => {
+            let maybe_value = eval_expr(scopes, builtins, &expr);
+            let (maybe_value, maybe_err) =
+                match maybe_value {
+                    Ok(v) => (v, value::new_null()),
+                    Err(e) => (value::new_null(), value::new_str(e.to_string())),
+                };
+
+            Ok(value::new_list(vec![maybe_value, maybe_err]))
+        },
+
         Expr::Object{props} => {
             let mut vals = HashMap::<String, ValRefWithSource>::new();
 
@@ -1245,6 +1257,32 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 _ => Err(format!("unsupported operation for lists ({:?})", op))
             }
         },
+
+        (Value::Null, _) => {
+            match op {
+                BinaryOp::EQ => Ok(Value::Bool(is_null(rhs))),
+                BinaryOp::NE => Ok(Value::Bool(!is_null(rhs))),
+
+                _ => Err(format!("unsupported operation for `null` ({:?})", op))
+            }
+        },
+
+        (_, Value::Null) => {
+            match op {
+                BinaryOp::EQ => Ok(Value::Bool(is_null(lhs))),
+                BinaryOp::NE => Ok(Value::Bool(!is_null(lhs))),
+
+                _ => Err(format!("unsupported operation for `null` ({:?})", op))
+            }
+        },
+
         _ => Err(format!("invalid types: {:?}", (lhs, rhs))),
     }
+}
+
+fn is_null(v: &Value) -> bool {
+    if let Value::Null = v {
+        return true
+    }
+    return false
 }

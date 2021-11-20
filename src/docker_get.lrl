@@ -11,7 +11,8 @@ fn $main() {
     let $args = $parse_args();
 
     $download_url = $download_url_from_mirror($args.mirror, $download_url);
-    $print($download_url);
+
+    $install($script_commit_sha);
 }
 
 fn $env_or($name, $default) {
@@ -53,6 +54,17 @@ fn $download_url_from_mirror($mirror, $default) {
     } else {
         return $default;
     }
+}
+
+fn $command_exists($name) {
+    let [$_, $err] = sh::'-c':('command -v ' + $name)?;
+    return $err == null;
+}
+
+fn $install($script_commit_sha) {
+    $print('# Executing docker install script, commit: ' + $script_commit_sha);
+
+    $print($command_exists('docker'));
 }
 
 $main();

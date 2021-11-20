@@ -82,6 +82,8 @@ pub Expr: Expr = {
     <start:Expr> ".." <end:Factor> =>
         Expr::Range{start: Box::new(start), end: Box::new(end)},
 
+    <expr:Expr> "?" => Expr::Catch{expr: Box::new(expr)},
+
     <expr:Term> => expr,
 }
 
