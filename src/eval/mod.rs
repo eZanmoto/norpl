@@ -221,6 +221,16 @@ fn value_to_pairs(v: &Value)
 {
     let pairs =
         match v {
+            Value::Str(s) =>
+                s
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| {
+                        // TODO Handle issues caused by casting.
+                        (value::new_int(i as i64), value::new_str(vec![*c]))
+                    })
+                    .collect(),
+
             Value::List(xs) =>
                 xs
                     .iter()
@@ -240,7 +250,7 @@ fn value_to_pairs(v: &Value)
                     .collect(),
 
             _ =>
-                return Err(format!("iterator must be a list or object")),
+                return Err(format!("iterator must be a list, object or string")),
         };
 
     Ok(pairs)

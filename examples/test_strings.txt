@@ -6,3 +6,7 @@ $print($s[6:11]);
 
 let $h = 'hello';
 $print($h->strip_prefix('hel'));
+
+for [$i, $c] in 'hello, world!' {
+    $print([$i, '-', $c]);
+}
