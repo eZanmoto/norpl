@@ -1085,13 +1085,18 @@ fn eval_expr(
 
             match cmd.output() {
                 Ok(output) => {
-                    let mut props = HashMap::new();
-
                     let exit_code =
                         match output.status.code() {
                             Some(c) => c as i64,
                             None => return Err(format!("process didn't return exit code")),
                         };
+
+                    if exit_code != 0 {
+                        return Err(format!("`{:?}` returned a non-0 exit code", cmd));
+                    }
+
+                    let mut props = HashMap::new();
+
                     props.insert("exit_code".to_string(), value::new_int(exit_code));
 
                     let stdout =
