@@ -1193,7 +1193,9 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 BinaryOp::EQ => Ok(Value::Bool(lhs == rhs)),
                 BinaryOp::NE => Ok(Value::Bool(lhs != rhs)),
                 BinaryOp::GT => Ok(Value::Bool(lhs > rhs)),
+                BinaryOp::GTE => Ok(Value::Bool(lhs >= rhs)),
                 BinaryOp::LT => Ok(Value::Bool(lhs < rhs)),
+                BinaryOp::LTE => Ok(Value::Bool(lhs <= rhs)),
 
                 BinaryOp::Sum => Ok(Value::Int(lhs + rhs)),
                 BinaryOp::Sub => Ok(Value::Int(lhs - rhs)),

@@ -86,7 +86,9 @@ pub enum BinaryOp {
     EQ,
     NE,
     GT,
+    GTE,
     LT,
+    LTE,
 
     Sum,
     Sub,
