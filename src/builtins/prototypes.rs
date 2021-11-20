@@ -50,13 +50,16 @@ fn strip_prefix_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithS
         Value::Str(unstripped) => {
             match &(*vs[0].lock().unwrap()).v {
                 Value::Str(prefix) => {
-                    let stripped =
-                        match unstripped.strip_prefix(prefix) {
-                            Some(s) => s,
-                            None => unstripped,
-                        };
+                    let len = prefix.len();
+                    if len > unstripped.len() {
+                        return Ok(value::new_str_from_string("".to_string()));
+                    }
 
-                    Ok(value::new_str(stripped.to_string()))
+                    let maybe_prefix = &unstripped[..len];
+                    if maybe_prefix == prefix {
+                        return Ok(value::new_str(unstripped[len..].to_vec()));
+                    }
+                    Ok(value::new_str(unstripped.to_vec()))
                 },
                 _ => {
                     Err(format!("the first argument to `strip_prefix` must be a string"))

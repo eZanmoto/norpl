@@ -5,7 +5,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::process::Command;
-use std::str;
 
 pub mod value;
 pub mod builtins;
@@ -235,7 +234,7 @@ fn value_to_pairs(v: &Value)
                 props
                     .iter()
                     .map(|(key, value)| {
-                        (value::new_str(key.to_string()), value.clone())
+                        (value::new_str_from_string(key.to_string()), value.clone())
                     })
                     .collect(),
 
@@ -307,8 +306,16 @@ fn bind_(
                 Value::Object(props) => {
                     let index = eval_expr(scopes, builtins, &location)?;
                     match &(*index.lock().unwrap()).v {
-                        Value::Str(s) => {
-                            props.insert(s.to_string(), rhs);
+                        Value::Str(raw_str) => {
+                            // TODO Consider whether non-UTF-8 strings can be
+                            // used as keys for objects.
+                            let s =
+                                match String::from_utf8(raw_str.to_vec()) {
+                                    Ok(p) => p,
+                                    Err(e) => return Err(format!("couldn't convert key to UTF-8: {}", e))
+                                };
+
+                            props.insert(s, rhs);
                         },
                         _ => return Err(format!("index must be an integer")),
                     };
@@ -565,10 +572,18 @@ fn bind_object(
             },
             PropItem::Pair{name, value: new_lhs} => {
                 let v = eval_expr(scopes, builtins, &name)?;
-                let prop_name =
+                let raw_prop_name =
                     match &(*v.lock().unwrap()).v {
                         Value::Str(s) => s.clone(),
                         _ => return Err(format!("property key must be a string")),
+                    };
+
+                // TODO Consider whether non-UTF-8 strings can be used as keys
+                // for objects.
+                let prop_name =
+                    match String::from_utf8(raw_prop_name.to_vec()) {
+                        Ok(p) => p,
+                        Err(e) => return Err(format!("couldn't convert key to UTF-8: {}", e))
                     };
 
                 rhs_keys.remove(&prop_name);
@@ -599,10 +614,17 @@ fn bind_object_pair(
 {
     let value = eval_expr(scopes, builtins, item_name)?;
 
-    let name =
+    let raw_name =
         match &(*value.lock().unwrap()).v {
             Value::Str(s) => s.clone(),
             _ => return Err(format!("property key must be a string")),
+        };
+
+    // TODO Consider whether non-UTF-8 strings can be used as keys for objects.
+    let name =
+        match String::from_utf8(raw_name.to_vec()) {
+            Ok(p) => p,
+            Err(e) => return Err(format!("couldn't convert key to UTF-8: {}", e))
         };
 
     let new_rhs =
@@ -630,7 +652,7 @@ fn eval_expr(
 
         Expr::Int{n} => Ok(value::new_int(n.clone())),
 
-        Expr::Str{s} => Ok(value::new_str(s.clone())),
+        Expr::Str{s} => Ok(value::new_str_from_string(s.clone())),
 
         Expr::List{xs} => {
             let mut vals = vec![];
@@ -686,6 +708,35 @@ fn eval_expr(
         Expr::Index{expr, location, safe} => {
             let source = eval_expr(scopes, builtins, expr)?;
             match &(*source.lock().unwrap()).v {
+                Value::Str(s) => {
+                    let v = eval_expr(scopes, builtins, location)?;
+                    match &(*v.lock().unwrap()).v {
+                        Value::Int(n) => {
+                            if *safe {
+                                let v =
+                                    match s.get(*n as usize) {
+                                        Some(v) => value::new_list(vec![
+                                            value::new_str(vec![*v]),
+                                            value::new_bool(true),
+                                        ]),
+                                        None => value::new_list(vec![
+                                            value::new_null(),
+                                            value::new_bool(false),
+                                        ]),
+                                    };
+
+                                return Ok(v);
+                            } else {
+                                match s.get(*n as usize) {
+                                    Some(v) => return Ok(value::new_str(vec![*v])),
+                                    None => return Err(format!("index out of bounds")),
+                                };
+                            }
+                        },
+                        _ => return Err(format!("index must be an integer")),
+                    };
+                },
+
                 Value::List(xs) => {
                     let v = eval_expr(scopes, builtins, location)?;
                     match &(*v.lock().unwrap()).v {
@@ -718,10 +769,18 @@ fn eval_expr(
                 Value::Object(props) => {
                     let v = eval_expr(scopes, builtins, location)?;
                     match &(*v.lock().unwrap()).v {
-                        Value::Str(name) => {
+                        Value::Str(raw_name) => {
+                            // TODO Consider whether non-UTF-8 strings can be
+                            // used to perform key lookups on objects.
+                            let name =
+                                match String::from_utf8(raw_name.to_vec()) {
+                                    Ok(p) => p,
+                                    Err(e) => return Err(format!("couldn't convert key to UTF-8: {}", e))
+                                };
+
                             if *safe {
                                 let v =
-                                    match props.get(name) {
+                                    match props.get(&name) {
                                         Some(v) => {
                                             let prop_val = &(*v.lock().unwrap()).v;
                                             value::new_list(vec![
@@ -742,7 +801,7 @@ fn eval_expr(
 
                                 return Ok(v);
                             } else {
-                                match props.get(name) {
+                                match props.get(&name) {
                                     Some(v) => {
                                         let prop_val = &(*v.lock().unwrap()).v;
                                         return Ok(value::new_val_ref_with_source(
@@ -760,7 +819,7 @@ fn eval_expr(
                     };
                 },
 
-                _ => return Err(format!("can only index lists and objects")),
+                _ => return Err(format!("can only index lists, objects and strings")),
             };
         },
 
@@ -854,9 +913,16 @@ fn eval_expr(
         Expr::Subcommand{expr, name} => {
             let object = eval_expr(scopes, builtins, expr)?;
             match &(*object.lock().unwrap()).v {
-                Value::Str(prog) => {
+                Value::Str(raw_prog) => {
                     let args = vec![name.clone()];
-                    return Ok(value::new_command(prog.clone(), args));
+
+                    let prog =
+                        match String::from_utf8(raw_prog.to_vec()) {
+                            Ok(p) => p,
+                            Err(e) => return Err(format!("couldn't convert program name to UTF-8: {}", e))
+                        };
+
+                    return Ok(value::new_command(prog, args));
                 },
 
                 Value::Command{prog, args} => {
@@ -874,7 +940,7 @@ fn eval_expr(
             let (maybe_value, maybe_err) =
                 match maybe_value {
                     Ok(v) => (v, value::new_null()),
-                    Err(e) => (value::new_null(), value::new_str(e.to_string())),
+                    Err(e) => (value::new_null(), value::new_str_from_string(e.to_string())),
                 };
 
             Ok(value::new_list(vec![maybe_value, maybe_err]))
@@ -887,13 +953,21 @@ fn eval_expr(
                 match prop {
                     PropItem::Pair{name, value} => {
                         let key_value = eval_expr(scopes, builtins, &name)?;
-                        let k =
+                        let raw_key =
                             match &(*key_value.lock().unwrap()).v {
                                 Value::Str(s) => s.clone(),
                                 _ => return Err(format!("property key must be a string")),
                             };
 
                         let v = eval_expr(scopes, builtins, &value)?;
+
+                        // TODO Consider whether non-UTF-8 strings can be used
+                        // as keys for objects.
+                        let k =
+                            match String::from_utf8(raw_key.to_vec()) {
+                                Ok(p) => p,
+                                Err(e) => return Err(format!("couldn't convert key to UTF-8: {}", e))
+                            };
 
                         vals.insert(k, v);
                     },
@@ -1064,14 +1138,35 @@ fn eval_expr(
                 {
                     let ValWithSource{v, ..} = &*value.lock().unwrap();
                     match v {
-                        Value::Str(prog) => {
+                        Value::Str(raw_prog) => {
                             let mut args = vec![];
                             for val in vals {
                                 match &(*val.lock().unwrap()).v {
-                                    Value::Str(s) => args.push(s.clone()),
-                                    _ => return Err(format!("program arguments must be strings")),
+                                    Value::Str(raw_str) => {
+                                        // TODO Consider whether non-UTF-8
+                                        // strings can be used for program
+                                        // arguments.
+                                        let s =
+                                            match String::from_utf8(raw_str.to_vec()) {
+                                                Ok(p) => p,
+                                                Err(e) => return Err(format!("couldn't convert program argument to UTF-8: {}", e))
+                                            };
+
+                                        args.push(s.clone());
+                                    },
+                                    _ => {
+                                        return Err(format!("program arguments must be strings"));
+                                    },
                                 }
                             }
+
+                            // TODO Consider whether non-UTF-8 strings can be
+                            // used for program names.
+                            let prog =
+                                match String::from_utf8(raw_prog.to_vec()) {
+                                    Ok(p) => p,
+                                    Err(e) => return Err(format!("couldn't convert program name to UTF-8: {}", e)),
+                                };
 
                             (prog.clone(), args)
                         },
@@ -1080,8 +1175,20 @@ fn eval_expr(
                             let mut args_ = args.clone();
                             for val in vals {
                                 match &(*val.lock().unwrap()).v {
-                                    Value::Str(s) => args_.push(s.clone()),
-                                    _ => return Err(format!("program arguments must be strings")),
+                                    Value::Str(raw_str) => {
+                                        // TODO Consider whether non-UTF-8
+                                        // strings can be used as program
+                                        // arguments.
+                                        let s =
+                                            match String::from_utf8(raw_str.to_vec()) {
+                                                Ok(p) => p,
+                                                Err(e) => return Err(format!("couldn't convert program argument to UTF-8: {}", e)),
+                                            };
+                                        args_.push(s.clone());
+                                    },
+                                    _ => {
+                                        return Err(format!("program arguments must be strings"))
+                                    },
                                 }
                             }
 
@@ -1110,20 +1217,8 @@ fn eval_expr(
                     let mut props = HashMap::new();
 
                     props.insert("exit_code".to_string(), value::new_int(exit_code));
-
-                    let stdout =
-                        match str::from_utf8(&output.stdout) {
-                            Ok(s) => s.to_string(),
-                            Err(e) => return Err(format!("couldn't parse STDOUT as UTF-8: {:?}", e)),
-                        };
-                    props.insert("stdout".to_string(), value::new_str(stdout));
-
-                    let stderr =
-                        match str::from_utf8(&output.stderr) {
-                            Ok(s) => s.to_string(),
-                            Err(e) => return Err(format!("couldn't parse STDERR as UTF-8: {:?}", e)),
-                        };
-                    props.insert("stderr".to_string(), value::new_str(stderr));
+                    props.insert("stdout".to_string(), value::new_str(output.stdout));
+                    props.insert("stderr".to_string(), value::new_str(output.stderr));
 
                     Ok(value::new_object(props))
                 },
@@ -1235,10 +1330,18 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
         },
         (Value::Str(lhs), Value::Str(rhs)) => {
             match op {
-                BinaryOp::EQ => Ok(Value::Bool(lhs == rhs)),
-                BinaryOp::Sum => Ok(Value::Str(lhs.to_owned() + rhs)),
+                BinaryOp::EQ => {
+                    Ok(Value::Bool(lhs == rhs))
+                },
+                BinaryOp::Sum => {
+                    let mut bytes = lhs.clone();
+                    bytes.extend(rhs);
 
-                _ => Err(format!("unsupported operation for strings ({:?})", op))
+                    Ok(Value::Str(bytes))
+                },
+                _ => {
+                    Err(format!("unsupported operation for strings ({:?})", op))
+                },
             }
         },
         (Value::List(lhs), Value::List(rhs)) => {

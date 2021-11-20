@@ -50,18 +50,18 @@ fn main() {
                     "env".to_string(),
                     value::new_object(HashMap::<_, _>::from_iter(
                         env::vars()
-                            .map(|(k, v)| (k, value::new_str(v))),
+                            .map(|(k, v)| (k, value::new_str_from_string(v))),
                     )),
                 ),
 
                 (
                     "args".to_string(),
                     value::new_list(vec![
-                        value::new_str("--dry-run".to_string()),
-                        value::new_str("--mirror".to_string()),
-                        value::new_str("abc".to_string()),
-                        value::new_str("--mirror".to_string()),
-                        value::new_str("Aliyun".to_string()),
+                        value::new_str_from_string("--dry-run".to_string()),
+                        value::new_str_from_string("--mirror".to_string()),
+                        value::new_str_from_string("abc".to_string()),
+                        value::new_str_from_string("--mirror".to_string()),
+                        value::new_str_from_string("Aliyun".to_string()),
                     ]),
                 ),
             ]))),

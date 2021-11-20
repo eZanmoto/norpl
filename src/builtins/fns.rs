@@ -12,7 +12,13 @@ use crate::eval::value::Value;
 pub fn panic_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
-        Value::Str(s) => {
+        Value::Str(raw_str) => {
+            let s =
+                match String::from_utf8(raw_str.to_vec()) {
+                    Ok(p) => p,
+                    Err(e) => return Err(format!("couldn't convert error message to UTF-8: {}", e))
+                };
+
             Err(s.to_string())
         },
         _ => {
@@ -25,12 +31,14 @@ pub fn panic_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSou
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
 pub fn print_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Remove varargs support.
-    println!("{}", render(vs[0].clone()));
+    let s = render(vs[0].clone())?;
+
+    println!("{}", s);
 
     Ok(value::new_null())
 }
 
-fn render(v: ValRefWithSource) -> String {
+fn render(v: ValRefWithSource) -> Result<String, String> {
     let mut s = String::new();
 
     match &v.lock().unwrap().v {
@@ -43,7 +51,13 @@ fn render(v: ValRefWithSource) -> String {
         Value::Int(n) => {
             s += &format!("{}", n);
         },
-        Value::Str(s_) => {
+        Value::Str(raw_str) => {
+            let s_ =
+                match String::from_utf8(raw_str.to_vec()) {
+                    Ok(p) => p,
+                    Err(e) => return Err(format!("couldn't convert error message to UTF-8: {}", e))
+                };
+
             s += &format!("'{}'", s_);
         },
         Value::BuiltInFunc{..} => {
@@ -55,14 +69,14 @@ fn render(v: ValRefWithSource) -> String {
         Value::List(xs) => {
             s += "[\n";
             for x in xs {
-                s += &format!("    {},\n", render(x.clone()));
+                s += &format!("    {},\n", render(x.clone())?);
             }
             s += "]";
         },
         Value::Object(props) => {
             s += "{\n";
             for (name, value) in props {
-                s += &format!("    '{}': {},\n", name, render(value.clone()));
+                s += &format!("    '{}': {},\n", name, render(value.clone())?);
             }
             s += "}";
         },
@@ -71,7 +85,7 @@ fn render(v: ValRefWithSource) -> String {
         },
     }
 
-    s.to_string()
+    Ok(s.to_string())
 }
 
 // NOCOMMIT Resolve Clippy issues.
@@ -106,5 +120,5 @@ pub fn type_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSour
             Value::Command{..} => "cmd",
         };
 
-    Ok(value::new_str(t.to_string()))
+    Ok(value::new_str_from_string(t.to_string()))
 }

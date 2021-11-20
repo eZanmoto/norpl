@@ -41,7 +41,7 @@ pub enum Value {
 
     Bool(bool),
     Int(i64),
-    Str(String),
+    Str(Str),
     List(List),
     Object(Object),
 
@@ -128,6 +128,8 @@ impl ScopeStack {
     }
 }
 
+pub type Str = Vec<u8>;
+
 pub type List = Vec<ValRefWithSource>;
 
 pub type Object = HashMap<String, ValRefWithSource>;
@@ -144,8 +146,12 @@ pub fn new_int(n: i64) -> ValRefWithSource {
     new_val_ref(Value::Int(n))
 }
 
-pub fn new_str(s: String) -> ValRefWithSource {
+pub fn new_str(s: Str) -> ValRefWithSource {
     new_val_ref(Value::Str(s))
+}
+
+pub fn new_str_from_string(s: String) -> ValRefWithSource {
+    new_val_ref(Value::Str(s.into_bytes()))
 }
 
 pub fn new_list(xs: List) -> ValRefWithSource {
