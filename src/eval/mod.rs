@@ -14,6 +14,7 @@ use self::builtins::Builtins;
 use self::value::DeclType;
 use self::value::List;
 use self::value::ScopeStack;
+use self::value::Str;
 use self::value::ValRefWithSource;
 use self::value::Value;
 use self::value::ValWithSource;
@@ -826,7 +827,7 @@ fn eval_expr(
         Expr::IndexRange{expr, start: maybe_start, end: maybe_end} => {
             let source = eval_expr(scopes, builtins, expr)?;
             match &(*source.lock().unwrap()).v {
-                Value::List(xs) => {
+                Value::Str(s) => {
                     if let Some(start) = maybe_start {
                         let v = eval_expr(scopes, builtins, start)?;
                         match &(*v.lock().unwrap()).v {
@@ -835,8 +836,8 @@ fn eval_expr(
                                     let v = eval_expr(scopes, builtins, end)?;
                                     match &(*v.lock().unwrap()).v {
                                         Value::Int(end) => {
-                                            return get_index_range(
-                                                xs,
+                                            return get_str_index_range(
+                                                s,
                                                 Some(*start as usize),
                                                 Some(*end as usize),
                                             );
@@ -845,7 +846,7 @@ fn eval_expr(
                                     };
                                 }
 
-                                return get_index_range(xs, Some(*start as usize), None);
+                                return get_str_index_range(s, Some(*start as usize), None);
                             },
                             _ => return Err(format!("index must be an integer")),
                         };
@@ -855,15 +856,52 @@ fn eval_expr(
                         let v = eval_expr(scopes, builtins, end)?;
                         match &(*v.lock().unwrap()).v {
                             Value::Int(end) => {
-                                return get_index_range(xs, None, Some(*end as usize));
+                                return get_str_index_range(s, None, Some(*end as usize));
                             },
                             _ => return Err(format!("index must be an integer")),
                         };
                     }
-                    return get_index_range(xs, None, None);
+                    return get_str_index_range(s, None, None);
                 },
 
-                _ => return Err(format!("can only index range lists")),
+                Value::List(xs) => {
+                    if let Some(start) = maybe_start {
+                        let v = eval_expr(scopes, builtins, start)?;
+                        match &(*v.lock().unwrap()).v {
+                            Value::Int(start) => {
+                                if let Some(end) = maybe_end {
+                                    let v = eval_expr(scopes, builtins, end)?;
+                                    match &(*v.lock().unwrap()).v {
+                                        Value::Int(end) => {
+                                            return get_list_index_range(
+                                                xs,
+                                                Some(*start as usize),
+                                                Some(*end as usize),
+                                            );
+                                        },
+                                        _ => return Err(format!("index must be an integer")),
+                                    };
+                                }
+
+                                return get_list_index_range(xs, Some(*start as usize), None);
+                            },
+                            _ => return Err(format!("index must be an integer")),
+                        };
+                    }
+
+                    if let Some(end) = maybe_end {
+                        let v = eval_expr(scopes, builtins, end)?;
+                        match &(*v.lock().unwrap()).v {
+                            Value::Int(end) => {
+                                return get_list_index_range(xs, None, Some(*end as usize));
+                            },
+                            _ => return Err(format!("index must be an integer")),
+                        };
+                    }
+                    return get_list_index_range(xs, None, None);
+                },
+
+                _ => return Err(format!("can only index range lists and strings")),
             };
         },
 
@@ -1251,7 +1289,24 @@ enum CallBinding {
     },
 }
 
-fn get_index_range(
+fn get_str_index_range(
+    s: &Str,
+    mut maybe_start: Option<usize>,
+    mut maybe_end: Option<usize>,
+)
+    -> Result<ValRefWithSource,String>
+{
+    let start = maybe_start.get_or_insert(0);
+    let end = maybe_end.get_or_insert(s.len());
+
+    if let Some(vs) = s.get(*start .. *end) {
+        return Ok(value::new_str(vs.to_vec()));
+    }
+
+    Err(format!("index out of bounds"))
+}
+
+fn get_list_index_range(
     xs: &List,
     mut maybe_start: Option<usize>,
     mut maybe_end: Option<usize>,
