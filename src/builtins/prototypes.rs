@@ -26,6 +26,14 @@ pub fn prototypes() -> Prototypes {
                 "starts_with".to_string(),
                 value::new_built_in_func(starts_with_),
             ),
+            (
+                "to_lower".to_string(),
+                value::new_built_in_func(to_lower_),
+            ),
+            (
+                "trim_right".to_string(),
+                value::new_built_in_func(trim_right_),
+            ),
         ])),
 
         lists: HashMap::<_, _>::from_iter(IntoIter::new([
@@ -90,6 +98,62 @@ fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSo
         }
         _ => {
             Err(format!("dev error: `starts_with_` called on non-string"))
+        },
+    }
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn to_lower_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
+    // TODO Handle `unwrap` on a "none" `this`.
+    // TODO Handle out-of-bounds access.
+    match &(*this.unwrap().lock().unwrap()).v {
+        Value::Str(s) => {
+            // TODO Don't allow arguments.
+
+            let lower_s = s.iter()
+                .map(|&c| if c < 65 || c > 90 {
+                    c
+                } else {
+                    c + 32
+                })
+                .collect();
+
+            Ok(value::new_str(lower_s))
+        }
+        _ => {
+            Err(format!("dev error: `to_lowercase_` called on non-string"))
+        },
+    }
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn trim_right_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
+    // TODO Handle `unwrap` on a "none" `this`.
+    // TODO Handle out-of-bounds access.
+    match &(*this.unwrap().lock().unwrap()).v {
+        Value::Str(s) => {
+            // TODO Don't allow arguments.
+
+            if s.len() == 0 {
+                return Ok(value::new_str(vec![]));
+            }
+
+            let mut last_non_whitespace = s.len() - 1;
+            while last_non_whitespace > 0 {
+                let c = s[last_non_whitespace];
+                if !((c < 10 || c > 13) && c != 32) {
+                    break;
+                }
+
+                last_non_whitespace -= 1;
+            }
+
+            Ok(value::new_str(s[..last_non_whitespace].to_vec()))
+        }
+        _ => {
+            Err(format!("dev error: `to_lowercase_` called on non-string"))
         },
     }
 }
