@@ -82,11 +82,6 @@ fn $is_dry_run() {
     return $ok;
 }
 
-fn $is_wsl() {
-    let $uname_r = uname:('-r').stdout;
-    return $uname_r->contains('microsoft') || $uname_r->contains('Microsoft');
-}
-
 fn $is_darwin() {
     let $uname_r = uname:('-r').stdout;
     return $uname_r->contains('darwin') || $uname_r->contains('Darwin');
@@ -126,6 +121,10 @@ fn $install($script_commit_sha, $is_dry_run) {
 
     let $lsb_dist = $get_distribution();
     $print($lsb_dist);
+
+    if $is_wsl() {
+        $panic("WSL DETECTED: We recommend... TODO");
+    }
 }
 
 fn $get_sh_c_subcommand($user) {
@@ -154,6 +153,11 @@ fn $get_distribution() {
     }
 
     return $dist->trim_right()->to_lower();
+}
+
+fn $is_wsl() {
+    let $uname_r = uname:('-r').stdout;
+    return $uname_r->contains('microsoft') || $uname_r->contains('Microsoft');
 }
 
 $main();
