@@ -123,7 +123,7 @@ fn $install($script_commit_sha, $is_dry_run) {
     $print($lsb_dist);
 
     if $is_wsl() {
-        $panic("WSL DETECTED: We recommend... TODO");
+        $panic('WSL DETECTED: We recommend... TODO');
     }
 }
 
