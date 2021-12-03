@@ -575,11 +575,7 @@ fn bind_object(
                 }
             },
             PropItem::Pair{name, value: new_lhs} => {
-                let raw_prop_name =
-                    match_eval_expr!((scopes, builtins, &name) {
-                        Value::Str(s) => s.clone(),
-                        _ => return Err(format!("property key must be a string")),
-                    });
+                let raw_prop_name = eval_expr_to_str(scopes, builtins, &name, "property key")?;
 
                 // TODO Consider whether non-UTF-8 strings can be used as keys
                 // for objects.
@@ -615,11 +611,7 @@ fn bind_object_pair(
 )
     -> Result<(),String>
 {
-    let raw_name =
-        match_eval_expr!((scopes, builtins, &item_name) {
-            Value::Str(s) => s.clone(),
-            _ => return Err(format!("property key must be a string")),
-        });
+    let raw_name = eval_expr_to_str(scopes, builtins, &item_name, "property key")?;
 
     // TODO Consider whether non-UTF-8 strings can be used as keys for objects.
     let name =
@@ -937,11 +929,7 @@ fn eval_expr(
             for prop in props {
                 match prop {
                     PropItem::Pair{name, value} => {
-                        let raw_key =
-                            match_eval_expr!((scopes, builtins, &name) {
-                                Value::Str(s) => s.clone(),
-                                _ => return Err(format!("property key must be a string")),
-                            });
+                        let raw_key = eval_expr_to_str(scopes, builtins, &name, "property key")?;
 
                         let v = eval_expr(scopes, builtins, &value)?;
 
@@ -1414,5 +1402,19 @@ fn eval_expr_to_i64(
     match_eval_expr!((scopes, builtins, expr) {
         Value::Int(n) => Ok(*n),
         _ => Err(format!("{} must be an integer", name)),
+    })
+}
+
+fn eval_expr_to_str(
+    scopes: &mut ScopeStack,
+    builtins: &Builtins,
+    expr: &Expr,
+    name: &str,
+)
+    -> Result<Str, String>
+{
+    match_eval_expr!((scopes, builtins, expr) {
+        Value::Str(s) => Ok(s.clone()),
+        _ => Err(format!("{} must be a string", name)),
     })
 }
