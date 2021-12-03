@@ -155,11 +155,7 @@ fn eval_stmt(
 
         Stmt::If{branches, else_stmts} => {
             for Branch{cond, stmts} in branches {
-                let b =
-                    match_eval_expr!((scopes, builtins, &cond) {
-                        Value::Bool(b) => *b,
-                        _ => return Err(format!("condition must be a `bool`")),
-                    });
+                let b = eval_expr_to_bool(scopes, builtins, &cond, "condition")?;
 
                 if b {
                     return eval_stmts_in_new_scope(scopes, builtins, &stmts);
@@ -173,11 +169,7 @@ fn eval_stmt(
 
         Stmt::While{cond, stmts} => {
             loop {
-                let b =
-                    match_eval_expr!((scopes, builtins, &cond) {
-                        Value::Bool(b) => *b,
-                        _ => return Err(format!("condition must be a `bool`")),
-                    });
+                let b = eval_expr_to_bool(scopes, builtins, &cond, "condition")?;
 
                 if !b {
                     break;
@@ -311,14 +303,10 @@ fn bind_(
 
             match_eval_expr!((scopes, builtins, &expr) {
                 Value::List(xs) => {
-                    match_eval_expr!((scopes, builtins, &location) {
-                        Value::Int(n) => {
-                            // TODO Handle out-of-bounds
-                            // assignment.
-                            xs[*n as usize] = rhs;
-                        },
-                        _ => return Err(format!("index must be an integer")),
-                    });
+                    let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
+
+                    // TODO Handle out-of-bounds assignment.
+                    xs[n as usize] = rhs;
                 },
 
                 Value::Object(props) => {
@@ -334,7 +322,7 @@ fn bind_(
 
                             props.insert(s, rhs);
                         },
-                        _ => return Err(format!("index must be an integer")),
+                        _ => return Err(format!("key must be a string")),
                     });
                 },
 
@@ -694,18 +682,8 @@ fn eval_expr(
         },
 
         Expr::Range{start, end} => {
-            let start =
-                match_eval_expr!((scopes, builtins, &start) {
-                    Value::Int(n) => *n,
-                    _ => return Err(format!("range end must be an integer")),
-                });
-
-            let end =
-                match_eval_expr!((scopes, builtins, &end) {
-                    Value::Int(n) => *n,
-                    _ => return Err(format!("range end must be an integer")),
-                });
-
+            let start = eval_expr_to_i64(scopes, builtins, &start, "range start")?;
+            let end = eval_expr_to_i64(scopes, builtins, &end, "range end")?;
             let range =
                 (start..end)
                     .map(|n| value::new_int(n))
@@ -718,59 +696,51 @@ fn eval_expr(
             let source = eval_expr(scopes, builtins, expr)?;
             match &(*source.lock().unwrap()).v {
                 Value::Str(s) => {
-                    match_eval_expr!((scopes, builtins, &location) {
-                        Value::Int(n) => {
-                            if *safe {
-                                let v =
-                                    match s.get(*n as usize) {
-                                        Some(v) => value::new_list(vec![
-                                            value::new_str(vec![*v]),
-                                            value::new_bool(true),
-                                        ]),
-                                        None => value::new_list(vec![
-                                            value::new_null(),
-                                            value::new_bool(false),
-                                        ]),
-                                    };
+                    let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
+                    if *safe {
+                        let v =
+                            match s.get(n as usize) {
+                                Some(v) => value::new_list(vec![
+                                    value::new_str(vec![*v]),
+                                    value::new_bool(true),
+                                ]),
+                                None => value::new_list(vec![
+                                    value::new_null(),
+                                    value::new_bool(false),
+                                ]),
+                            };
 
-                                return Ok(v);
-                            } else {
-                                match s.get(*n as usize) {
-                                    Some(v) => return Ok(value::new_str(vec![*v])),
-                                    None => return Err(format!("index out of bounds")),
-                                };
-                            }
-                        },
-                        _ => return Err(format!("index must be an integer")),
-                    });
+                        return Ok(v);
+                    } else {
+                        match s.get(n as usize) {
+                            Some(v) => return Ok(value::new_str(vec![*v])),
+                            None => return Err(format!("index out of bounds")),
+                        };
+                    }
                 },
 
                 Value::List(xs) => {
-                    match_eval_expr!((scopes, builtins, &location) {
-                        Value::Int(n) => {
-                            if *safe {
-                                let v =
-                                    match xs.get(*n as usize) {
-                                        Some(v) => value::new_list(vec![
-                                            v.clone(),
-                                            value::new_bool(true),
-                                        ]),
-                                        None => value::new_list(vec![
-                                            value::new_null(),
-                                            value::new_bool(false),
-                                        ]),
-                                    };
+                    let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
+                    if *safe {
+                        let v =
+                            match xs.get(n as usize) {
+                                Some(v) => value::new_list(vec![
+                                    v.clone(),
+                                    value::new_bool(true),
+                                ]),
+                                None => value::new_list(vec![
+                                    value::new_null(),
+                                    value::new_bool(false),
+                                ]),
+                            };
 
-                                return Ok(v);
-                            } else {
-                                match xs.get(*n as usize) {
-                                    Some(v) => return Ok(v.clone()),
-                                    None => return Err(format!("index out of bounds")),
-                                };
-                            }
-                        },
-                        _ => return Err(format!("index must be an integer")),
-                    });
+                        return Ok(v);
+                    } else {
+                        match xs.get(n as usize) {
+                            Some(v) => return Ok(v.clone()),
+                            None => return Err(format!("index out of bounds")),
+                        };
+                    }
                 },
 
                 Value::Object(props) => {
@@ -833,68 +803,48 @@ fn eval_expr(
             match_eval_expr!((scopes, builtins, &expr) {
                 Value::Str(s) => {
                     if let Some(start) = maybe_start {
-                        match_eval_expr!((scopes, builtins, &start) {
-                            Value::Int(start) => {
-                                if let Some(end) = maybe_end {
-                                    match_eval_expr!((scopes, builtins, &end) {
-                                        Value::Int(end) => {
-                                            return get_str_index_range(
-                                                s,
-                                                Some(*start as usize),
-                                                Some(*end as usize),
-                                            );
-                                        },
-                                        _ => return Err(format!("index must be an integer")),
-                                    });
-                                }
+                        let start = eval_expr_to_i64(scopes, builtins, &start, "index")?;
 
-                                return get_str_index_range(s, Some(*start as usize), None);
-                            },
-                            _ => return Err(format!("index must be an integer")),
-                        });
+                        if let Some(end) = maybe_end {
+                            let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+                            return get_str_index_range(
+                                s,
+                                Some(start as usize),
+                                Some(end as usize),
+                            );
+                        }
+
+                        return get_str_index_range(s, Some(start as usize), None);
                     }
 
                     if let Some(end) = maybe_end {
-                        match_eval_expr!((scopes, builtins, &end) {
-                            Value::Int(end) => {
-                                return get_str_index_range(s, None, Some(*end as usize));
-                            },
-                            _ => return Err(format!("index must be an integer")),
-                        });
+                        let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+
+                        return get_str_index_range(s, None, Some(end as usize));
                     }
                     return get_str_index_range(s, None, None);
                 },
 
                 Value::List(xs) => {
                     if let Some(start) = maybe_start {
-                        match_eval_expr!((scopes, builtins, &start) {
-                            Value::Int(start) => {
-                                if let Some(end) = maybe_end {
-                                    match_eval_expr!((scopes, builtins, &end) {
-                                        Value::Int(end) => {
-                                            return get_list_index_range(
-                                                xs,
-                                                Some(*start as usize),
-                                                Some(*end as usize),
-                                            );
-                                        },
-                                        _ => return Err(format!("index must be an integer")),
-                                    });
-                                }
+                        let start = eval_expr_to_i64(scopes, builtins, &start, "index")?;
 
-                                return get_list_index_range(xs, Some(*start as usize), None);
-                            },
-                            _ => return Err(format!("index must be an integer")),
-                        });
+                        if let Some(end) = maybe_end {
+                            let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+                            return get_list_index_range(
+                                xs,
+                                Some(start as usize),
+                                Some(end as usize),
+                            );
+                        }
+
+                        return get_list_index_range(xs, Some(start as usize), None);
                     }
 
                     if let Some(end) = maybe_end {
-                        match_eval_expr!((scopes, builtins, &end) {
-                            Value::Int(end) => {
-                                return get_list_index_range(xs, None, Some(*end as usize));
-                            },
-                            _ => return Err(format!("index must be an integer")),
-                        });
+                        let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+
+                        return get_list_index_range(xs, None, Some(end as usize));
                     }
                     return get_list_index_range(xs, None, None);
                 },
@@ -1437,4 +1387,32 @@ fn is_null(v: &Value) -> bool {
         return true
     }
     return false
+}
+
+fn eval_expr_to_bool(
+    scopes: &mut ScopeStack,
+    builtins: &Builtins,
+    expr: &Expr,
+    name: &str,
+)
+    -> Result<bool, String>
+{
+    match_eval_expr!((scopes, builtins, expr) {
+        Value::Bool(b) => Ok(*b),
+        _ => Err(format!("{} must be a boolean", name)),
+    })
+}
+
+fn eval_expr_to_i64(
+    scopes: &mut ScopeStack,
+    builtins: &Builtins,
+    expr: &Expr,
+    name: &str,
+)
+    -> Result<i64, String>
+{
+    match_eval_expr!((scopes, builtins, expr) {
+        Value::Int(n) => Ok(*n),
+        _ => Err(format!("{} must be an integer", name)),
+    })
 }
