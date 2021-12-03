@@ -19,6 +19,19 @@ use self::value::ValRefWithSource;
 use self::value::Value;
 use self::value::ValWithSource;
 
+macro_rules! match_eval_expr {
+    (
+        ( $scopes:ident, $builtins:ident, $expr:expr )
+        { $( $key:pat => $value:expr , )* }
+    ) => {{
+        let value = eval_expr($scopes, $builtins, $expr)?;
+        let unlocked_value = &mut (*value.lock().unwrap()).v;
+        match unlocked_value {
+            $( $key => $value , )*
+        }
+    }};
+}
+
 pub fn eval_prog(
     scopes: &mut ScopeStack,
     global_bindings: Vec<(Expr, ValRefWithSource)>,
@@ -142,13 +155,11 @@ fn eval_stmt(
 
         Stmt::If{branches, else_stmts} => {
             for Branch{cond, stmts} in branches {
-                let cond = eval_expr(scopes, builtins, &cond)?;
-
                 let b =
-                    match (*cond.lock().unwrap()).v {
-                        Value::Bool(b) => b,
+                    match_eval_expr!((scopes, builtins, &cond) {
+                        Value::Bool(b) => *b,
                         _ => return Err(format!("condition must be a `bool`")),
-                    };
+                    });
 
                 if b {
                     return eval_stmts_in_new_scope(scopes, builtins, &stmts);
@@ -162,13 +173,11 @@ fn eval_stmt(
 
         Stmt::While{cond, stmts} => {
             loop {
-                let cond = eval_expr(scopes, builtins, &cond)?;
-
                 let b =
-                    match (*cond.lock().unwrap()).v {
-                        Value::Bool(b) => b,
+                    match_eval_expr!((scopes, builtins, &cond) {
+                        Value::Bool(b) => *b,
                         _ => return Err(format!("condition must be a `bool`")),
-                    };
+                    });
 
                 if !b {
                     break;
@@ -300,23 +309,20 @@ fn bind_(
                 return Err(format!("can't assign to safe index"));
             }
 
-            let value = eval_expr(scopes, builtins, &expr)?;
-            match &mut (*value.lock().unwrap()).v {
+            match_eval_expr!((scopes, builtins, &expr) {
                 Value::List(xs) => {
-                    let index = eval_expr(scopes, builtins, &location)?;
-                    match &(*index.lock().unwrap()).v {
+                    match_eval_expr!((scopes, builtins, &location) {
                         Value::Int(n) => {
                             // TODO Handle out-of-bounds
                             // assignment.
                             xs[*n as usize] = rhs;
                         },
                         _ => return Err(format!("index must be an integer")),
-                    };
+                    });
                 },
 
                 Value::Object(props) => {
-                    let index = eval_expr(scopes, builtins, &location)?;
-                    match &(*index.lock().unwrap()).v {
+                    match_eval_expr!((scopes, builtins, &location) {
                         Value::Str(raw_str) => {
                             // TODO Consider whether non-UTF-8 strings can be
                             // used as keys for objects.
@@ -329,11 +335,11 @@ fn bind_(
                             props.insert(s, rhs);
                         },
                         _ => return Err(format!("index must be an integer")),
-                    };
+                    });
                 },
 
                 _ => return Err(format!("can only assign to indices of lists and objects")),
-            }
+            });
 
             Ok(())
         },
@@ -343,11 +349,10 @@ fn bind_(
                 return Err(format!("can't assign to prototype properties"));
             }
 
-            let value = eval_expr(scopes, builtins, &expr)?;
-            match &mut (*value.lock().unwrap()).v {
+            match_eval_expr!((scopes, builtins, &expr) {
                 Value::Object(props) => props.insert(name, rhs),
                 _ => return Err(format!("can only assign to properties of objects")),
-            };
+            });
 
             Ok(())
         },
@@ -582,12 +587,11 @@ fn bind_object(
                 }
             },
             PropItem::Pair{name, value: new_lhs} => {
-                let v = eval_expr(scopes, builtins, &name)?;
                 let raw_prop_name =
-                    match &(*v.lock().unwrap()).v {
+                    match_eval_expr!((scopes, builtins, &name) {
                         Value::Str(s) => s.clone(),
                         _ => return Err(format!("property key must be a string")),
-                    };
+                    });
 
                 // TODO Consider whether non-UTF-8 strings can be used as keys
                 // for objects.
@@ -623,13 +627,11 @@ fn bind_object_pair(
 )
     -> Result<(),String>
 {
-    let value = eval_expr(scopes, builtins, item_name)?;
-
     let raw_name =
-        match &(*value.lock().unwrap()).v {
+        match_eval_expr!((scopes, builtins, &item_name) {
             Value::Str(s) => s.clone(),
             _ => return Err(format!("property key must be a string")),
-        };
+        });
 
     // TODO Consider whether non-UTF-8 strings can be used as keys for objects.
     let name =
@@ -692,21 +694,17 @@ fn eval_expr(
         },
 
         Expr::Range{start, end} => {
-            let start_value = eval_expr(scopes, builtins, start)?;
-
             let start =
-                match (*start_value.lock().unwrap()).v {
-                    Value::Int(n) => n,
+                match_eval_expr!((scopes, builtins, &start) {
+                    Value::Int(n) => *n,
                     _ => return Err(format!("range end must be an integer")),
-                };
-
-            let end_value = eval_expr(scopes, builtins, end)?;
+                });
 
             let end =
-                match (*end_value.lock().unwrap()).v {
-                    Value::Int(n) => n,
+                match_eval_expr!((scopes, builtins, &end) {
+                    Value::Int(n) => *n,
                     _ => return Err(format!("range end must be an integer")),
-                };
+                });
 
             let range =
                 (start..end)
@@ -720,8 +718,7 @@ fn eval_expr(
             let source = eval_expr(scopes, builtins, expr)?;
             match &(*source.lock().unwrap()).v {
                 Value::Str(s) => {
-                    let v = eval_expr(scopes, builtins, location)?;
-                    match &(*v.lock().unwrap()).v {
+                    match_eval_expr!((scopes, builtins, &location) {
                         Value::Int(n) => {
                             if *safe {
                                 let v =
@@ -745,12 +742,11 @@ fn eval_expr(
                             }
                         },
                         _ => return Err(format!("index must be an integer")),
-                    };
+                    });
                 },
 
                 Value::List(xs) => {
-                    let v = eval_expr(scopes, builtins, location)?;
-                    match &(*v.lock().unwrap()).v {
+                    match_eval_expr!((scopes, builtins, &location) {
                         Value::Int(n) => {
                             if *safe {
                                 let v =
@@ -774,12 +770,11 @@ fn eval_expr(
                             }
                         },
                         _ => return Err(format!("index must be an integer")),
-                    };
+                    });
                 },
 
                 Value::Object(props) => {
-                    let v = eval_expr(scopes, builtins, location)?;
-                    match &(*v.lock().unwrap()).v {
+                    match_eval_expr!((scopes, builtins, &location) {
                         Value::Str(raw_name) => {
                             // TODO Consider whether non-UTF-8 strings can be
                             // used to perform key lookups on objects.
@@ -827,7 +822,7 @@ fn eval_expr(
                             }
                         },
                         _ => return Err(format!("property name must be a string")),
-                    };
+                    });
                 },
 
                 _ => return Err(format!("can only index lists, objects and strings")),
@@ -835,16 +830,13 @@ fn eval_expr(
         },
 
         Expr::IndexRange{expr, start: maybe_start, end: maybe_end} => {
-            let source = eval_expr(scopes, builtins, expr)?;
-            match &(*source.lock().unwrap()).v {
+            match_eval_expr!((scopes, builtins, &expr) {
                 Value::Str(s) => {
                     if let Some(start) = maybe_start {
-                        let v = eval_expr(scopes, builtins, start)?;
-                        match &(*v.lock().unwrap()).v {
+                        match_eval_expr!((scopes, builtins, &start) {
                             Value::Int(start) => {
                                 if let Some(end) = maybe_end {
-                                    let v = eval_expr(scopes, builtins, end)?;
-                                    match &(*v.lock().unwrap()).v {
+                                    match_eval_expr!((scopes, builtins, &end) {
                                         Value::Int(end) => {
                                             return get_str_index_range(
                                                 s,
@@ -853,35 +845,32 @@ fn eval_expr(
                                             );
                                         },
                                         _ => return Err(format!("index must be an integer")),
-                                    };
+                                    });
                                 }
 
                                 return get_str_index_range(s, Some(*start as usize), None);
                             },
                             _ => return Err(format!("index must be an integer")),
-                        };
+                        });
                     }
 
                     if let Some(end) = maybe_end {
-                        let v = eval_expr(scopes, builtins, end)?;
-                        match &(*v.lock().unwrap()).v {
+                        match_eval_expr!((scopes, builtins, &end) {
                             Value::Int(end) => {
                                 return get_str_index_range(s, None, Some(*end as usize));
                             },
                             _ => return Err(format!("index must be an integer")),
-                        };
+                        });
                     }
                     return get_str_index_range(s, None, None);
                 },
 
                 Value::List(xs) => {
                     if let Some(start) = maybe_start {
-                        let v = eval_expr(scopes, builtins, start)?;
-                        match &(*v.lock().unwrap()).v {
+                        match_eval_expr!((scopes, builtins, &start) {
                             Value::Int(start) => {
                                 if let Some(end) = maybe_end {
-                                    let v = eval_expr(scopes, builtins, end)?;
-                                    match &(*v.lock().unwrap()).v {
+                                    match_eval_expr!((scopes, builtins, &end) {
                                         Value::Int(end) => {
                                             return get_list_index_range(
                                                 xs,
@@ -890,29 +879,28 @@ fn eval_expr(
                                             );
                                         },
                                         _ => return Err(format!("index must be an integer")),
-                                    };
+                                    });
                                 }
 
                                 return get_list_index_range(xs, Some(*start as usize), None);
                             },
                             _ => return Err(format!("index must be an integer")),
-                        };
+                        });
                     }
 
                     if let Some(end) = maybe_end {
-                        let v = eval_expr(scopes, builtins, end)?;
-                        match &(*v.lock().unwrap()).v {
+                        match_eval_expr!((scopes, builtins, &end) {
                             Value::Int(end) => {
                                 return get_list_index_range(xs, None, Some(*end as usize));
                             },
                             _ => return Err(format!("index must be an integer")),
-                        };
+                        });
                     }
                     return get_list_index_range(xs, None, None);
                 },
 
                 _ => return Err(format!("can only index range lists and strings")),
-            };
+            });
         },
 
         Expr::Prop{expr, name, prototype} => {
@@ -959,8 +947,7 @@ fn eval_expr(
         },
 
         Expr::Subcommand{expr, name} => {
-            let object = eval_expr(scopes, builtins, expr)?;
-            match &(*object.lock().unwrap()).v {
+            match_eval_expr!((scopes, builtins, &expr) {
                 Value::Str(raw_prog) => {
                     let args = vec![name.clone()];
 
@@ -980,7 +967,7 @@ fn eval_expr(
                 },
 
                 _ => return Err(format!("can only add subcommands to strings and commands")),
-            };
+            });
         },
 
         Expr::Catch{expr} => {
@@ -1000,12 +987,11 @@ fn eval_expr(
             for prop in props {
                 match prop {
                     PropItem::Pair{name, value} => {
-                        let key_value = eval_expr(scopes, builtins, &name)?;
                         let raw_key =
-                            match &(*key_value.lock().unwrap()).v {
+                            match_eval_expr!((scopes, builtins, &name) {
                                 Value::Str(s) => s.clone(),
                                 _ => return Err(format!("property key must be a string")),
-                            };
+                            });
 
                         let v = eval_expr(scopes, builtins, &value)?;
 
@@ -1025,9 +1011,7 @@ fn eval_expr(
                         }
 
                         if *is_spread {
-                            let v = eval_expr(scopes, builtins, &expr)?;
-
-                            match &(*v.lock().unwrap()).v {
+                            match_eval_expr!((scopes, builtins, &expr) {
                                 Value::Object(props) => {
                                     for (name, value) in props.iter() {
                                         vals.insert(name.to_string(), value.clone());
@@ -1037,7 +1021,7 @@ fn eval_expr(
                                 _ => {
                                     return Err(format!("can only spread objects in objects"));
                                 },
-                            };
+                            });
                         } else {
                             if let Expr::Var{name} = expr {
                                 let v =
