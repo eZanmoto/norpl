@@ -1046,6 +1046,10 @@ fn eval_expr(
                         },
 
                         Value::Func{args: arg_names, stmts, closure} => {
+                            if arg_names.len() != vals.len() {
+                                return Err(format!("function requires {} arguments, got {}", arg_names.len(), vals.len()))
+                            }
+
                             let mut bindings: Vec<(Expr, ValRefWithSource)> =
                                 arg_names
                                     .clone()
