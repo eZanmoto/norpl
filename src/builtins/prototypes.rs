@@ -20,19 +20,19 @@ pub fn prototypes() -> Prototypes {
         strs: HashMap::<_, _>::from_iter(IntoIter::new([
             (
                 "strip_prefix".to_string(),
-                value::new_built_in_func(strip_prefix_),
+                value::new_built_in_func(str_strip_prefix_),
             ),
             (
                 "starts_with".to_string(),
-                value::new_built_in_func(starts_with_),
+                value::new_built_in_func(str_starts_with_),
             ),
             (
                 "to_lower".to_string(),
-                value::new_built_in_func(to_lower_),
+                value::new_built_in_func(str_to_lower_),
             ),
             (
                 "trim_right".to_string(),
-                value::new_built_in_func(trim_right_),
+                value::new_built_in_func(str_trim_right_),
             ),
         ])),
 
@@ -51,7 +51,7 @@ pub fn prototypes() -> Prototypes {
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn strip_prefix_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
+fn str_strip_prefix_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
@@ -82,7 +82,7 @@ fn strip_prefix_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithS
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
+fn str_starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
@@ -104,7 +104,7 @@ fn starts_with_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSo
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn to_lower_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
+fn str_to_lower_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
@@ -129,7 +129,7 @@ fn to_lower_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSour
 
 // NOCOMMIT Resolve Clippy issues.
 #[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
-fn trim_right_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
+fn str_trim_right_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     // TODO Handle out-of-bounds access.
     match &(*this.unwrap().lock().unwrap()).v {
