@@ -19,6 +19,10 @@ pub fn prototypes() -> Prototypes {
 
         strs: HashMap::<_, _>::from_iter(IntoIter::new([
             (
+                "contains".to_string(),
+                value::new_built_in_func(str_contains_),
+            ),
+            (
                 "starts_with".to_string(),
                 value::new_built_in_func(str_starts_with_),
             ),
@@ -46,6 +50,39 @@ pub fn prototypes() -> Prototypes {
         objects: HashMap::<String, ValRefWithSource>::new(),
         funcs: HashMap::<String, ValRefWithSource>::new(),
         commands: HashMap::<String, ValRefWithSource>::new(),
+    }
+}
+
+// NOCOMMIT Resolve Clippy issues.
+#[allow(clippy::unnecessary_wraps, clippy::needless_pass_by_value)]
+fn str_contains_(this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
+    // TODO Handle `unwrap` on a "none" `this`.
+    // TODO Handle out-of-bounds access.
+    match &(*this.unwrap().lock().unwrap()).v {
+        Value::Str(source) => {
+            match &(*vs[0].lock().unwrap()).v {
+                Value::Str(target) => {
+                    let mut window_start = 0;
+                    while (window_start + target.len()) <= source.len() {
+                        let window_end = window_start + target.len();
+                        let x = &source[window_start..window_end];
+                        if x == target {
+                            return Ok(value::new_bool(true));
+                        }
+
+                        window_start += 1;
+                    }
+
+                    Ok(value::new_bool(false))
+                },
+                _ => {
+                    Err(format!("the first argument to `contains` must be a string"))
+                },
+            }
+        }
+        _ => {
+            Err(format!("can only call `contains` on strings"))
+        },
     }
 }
 
