@@ -19,20 +19,20 @@ pub fn prototypes() -> Prototypes {
 
         strs: HashMap::<_, _>::from_iter(IntoIter::new([
             (
-                "strip_prefix".to_string(),
-                value::new_built_in_func(str_strip_prefix_),
-            ),
-            (
                 "starts_with".to_string(),
                 value::new_built_in_func(str_starts_with_),
             ),
             (
-                "to_lower".to_string(),
-                value::new_built_in_func(str_to_lower_),
+                "strip_prefix".to_string(),
+                value::new_built_in_func(str_strip_prefix_),
             ),
             (
                 "trim_right".to_string(),
                 value::new_built_in_func(str_trim_right_),
+            ),
+            (
+                "to_lower".to_string(),
+                value::new_built_in_func(str_to_lower_),
             ),
         ])),
 
