@@ -1,0 +1,10 @@
+$print(''->contains(''));
+$print('abc'->contains(''));
+$print('abc'->contains('ab'));
+$print('abc'->contains('b'));
+$print('abc'->contains('bc'));
+$print('abc'->contains('abc'));
+
+$print('abc'->contains('d'));
+$print('abc'->contains('ac'));
+$print(''->contains('abc'));
