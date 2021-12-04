@@ -69,13 +69,6 @@ pub IfStmt: (Vec<Branch>, Option<Block>) = {
 }
 
 pub Expr: Expr = {
-    <lhs:Expr> "==" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::EQ, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Expr> "!=" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::NE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Expr> ">" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::GT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Expr> ">=" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::GTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Expr> "<" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Expr> "<=" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::LTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-
     <lhs:Expr> "&&" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::And, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Expr> "||" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::Or, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
@@ -100,6 +93,13 @@ pub Factor: Expr = {
     <lhs:Factor> "*" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::Mul, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Factor> "/" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::Div, lhs: Box::new(lhs), rhs: Box::new(rhs)},
     <lhs:Factor> "%" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::Mod, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+
+    <lhs:Factor> "==" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::EQ, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Factor> "!=" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::NE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Factor> ">" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::GT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Factor> ">=" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::GTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Factor> "<" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Factor> "<=" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::LTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
     <expr:Application> => expr,
 }
