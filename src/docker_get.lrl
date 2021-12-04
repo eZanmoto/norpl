@@ -125,6 +125,9 @@ fn $install($script_commit_sha, $is_dry_run) {
     if $is_wsl() {
         $panic('WSL DETECTED: We recommend... TODO');
     }
+
+    let $dist_version = $get_dist_version($lsb_dist);
+    $print($dist_version);
 }
 
 fn $get_sh_c_subcommand($user) {
@@ -145,19 +148,72 @@ fn $get_sh_c_subcommand($user) {
 
 fn $get_distribution() {
     let $fname = '/etc/os-release';
-
     let $dist = '';
-    let [$_, $err] = test:('-r', $fname)?;
-    if $err == null {
+    if $is_file_readable($fname) {
         $dist = sh::'-c':('. ' + $fname + ' && echo "$ID"').stdout;
     }
-
     return $dist->trim_right()->to_lower();
 }
 
 fn $is_wsl() {
     let $uname_r = uname:('-r').stdout;
     return $uname_r->contains('microsoft') || $uname_r->contains('Microsoft');
+}
+
+fn $get_dist_version($lsb_dist) {
+    if $lsb_dist == 'ubuntu' {
+        if $command_exists('lsb_release') {
+            let $codename = lsb_release:('--codename').stdout;
+            return $codename->split('\t')[1];
+        }
+
+        let $fname = '/etc/lsb-release';
+        if !$is_file_readable($fname) {
+            return '';
+        }
+
+        let $dist = sh::'-c':('. ' + $fname + ' && echo "$DISTRIB_CODENAME"').stdout;
+        return $dist->trim_right();
+    } else if $lsb_dist == 'debian' || $lsb_dist == 'raspbian' {
+        let $dist_version = sed:('s/\/.*//', '/etc/debian_version').stdout->trim_right();
+
+        'TODO Implement piping; the above output needs to be piped to `sed`';
+
+        if $dist_version == '11' {
+            return 'bullseye';
+        } else if $dist_version == '10' {
+            return 'buster';
+        } else if $dist_version == '9' {
+            return 'stretch';
+        } else if $dist_version == '8' {
+            return 'jessie';
+        }
+        return $dist_version;
+    } else if $lsb_dist == 'cestos' || $lsb_dist == 'rhel' || $lsb_dist == 'sles' {
+        let $fname = '/etc/os-release';
+        if $is_file_readable($fname) {
+            $vsn = sh::'-c':('. ' + $fname + ' && echo "$VERSION_ID"').stdout;
+            return $vsn->trim_right()->to_lower();
+        }
+    } else {
+        if $command_exists('lsb_release') {
+            let $release = lsb_release('--release').stdout;
+            return $release->split('\t')[1];
+        }
+
+        let $fname = '/etc/os-release';
+        if $is_file_readable($fname) {
+            $vsn = sh::'-c':('. ' + $fname + ' && echo "$VERSION_ID"').stdout;
+            return $vsn->trim_right()->to_lower();
+        }
+    }
+
+    return '';
+}
+
+fn $is_file_readable($path) {
+    let [$_, $err] = test:('-r', $path)?;
+    return $err == null;
 }
 
 $main();
