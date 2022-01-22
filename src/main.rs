@@ -1,4 +1,4 @@
-// Copyright 2021 Sean Kelleher. All rights reserved.
+// Copyright 2021-2022 Sean Kelleher. All rights reserved.
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
@@ -13,6 +13,7 @@ use std::iter::FromIterator;
 mod ast;
 mod builtins;
 mod eval;
+mod lexer;
 
 use ast::Expr;
 use builtins::fns;
@@ -20,6 +21,7 @@ use builtins::prototypes;
 use eval::value;
 use eval::builtins::Builtins;
 use eval::value::ScopeStack;
+use lexer::Lexer;
 use parser::ProgParser;
 
 #[macro_use]
@@ -71,7 +73,8 @@ fn main() {
     let prototypes = prototypes::prototypes();
 
     let mut scopes = ScopeStack::new(vec![]);
-    let ast = ProgParser::new().parse(&test).unwrap();
+    let lexer = Lexer::new(&test);
+    let ast = ProgParser::new().parse(lexer).unwrap();
     let result = eval::eval_prog(
         &mut scopes,
         global_bindings,
@@ -88,7 +91,7 @@ fn read_test() -> String {
     let mut test = String::new();
 
     for s in lines {
-        test.push_str(&s.unwrap());
+        test.push_str(&(s.unwrap() + "\n"));
     }
 
     test
