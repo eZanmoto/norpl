@@ -2,7 +2,6 @@
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
-use std::iter::Peekable;
 use std::str::CharIndices;
 
 #[derive(Clone, Debug)]
@@ -73,7 +72,7 @@ pub enum LexError {
 
 pub struct Lexer<'input> {
     raw_chars: &'input str,
-    chars: Peekable<CharIndices<'input>>,
+    chars: CharIndices<'input>,
     index: usize,
     cur: Option<(usize, char)>,
 
@@ -83,9 +82,9 @@ pub struct Lexer<'input> {
 
 impl<'input> Lexer<'input> {
     pub fn new(chars: &'input str) -> Self {
-        let mut peekable_chars = chars.char_indices().peekable();
+        let mut char_indices = chars.char_indices();
 
-        let cur = peekable_chars.next();
+        let cur = char_indices.next();
         let mut line = 1;
         if let Some((_, '\n')) = cur {
             line += 1;
@@ -93,7 +92,7 @@ impl<'input> Lexer<'input> {
 
         Lexer{
             raw_chars: &chars,
-            chars: peekable_chars,
+            chars: char_indices,
             index: 0,
             cur,
 
