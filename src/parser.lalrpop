@@ -147,6 +147,7 @@ pub Expr_: Expr = {
     <name:Ident> => Expr::Var{name},
     <n:IntLiteral> => Expr::Int{n},
     <s:StrLiteral> => Expr::Str{s},
+    <s:InterpolatedStrLiteral> => Expr::InterpolatedStr{s},
 
     "[" <xs:ExprList> "]" => Expr::List{xs},
 
@@ -219,6 +220,10 @@ StrLiteral: String = {
     <s:UnquotedStrLiteral> => s,
 };
 
+InterpolatedStrLiteral: String = {
+    <s:"interpolated_str_literal"> => s,
+}
+
 QuotedStrLiteral: String = {
     <s:"quoted_str_literal"> => s,
 }
@@ -238,6 +243,7 @@ extern {
     enum Token {
         "ident" => Token::Ident(<String>),
         "int_literal" => Token::IntLiteral(<i64>),
+        "interpolated_str_literal" => Token::InterpolatedStrLiteral(<String>),
         "quoted_str_literal" => Token::QuotedStrLiteral(<String>),
         "unquoted_str_literal" => Token::UnquotedStrLiteral(<String>),
 

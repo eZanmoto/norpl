@@ -9,6 +9,7 @@ use std::str::CharIndices;
 pub enum Token {
     Ident(String),
     IntLiteral(i64),
+    InterpolatedStrLiteral(String),
     QuotedStrLiteral(String),
     UnquotedStrLiteral(String),
 
@@ -67,6 +68,7 @@ pub enum Token {
 #[derive(Debug)]
 pub enum LexError {
     Unexpected(Location, char),
+    UnexpectedEofAfterDollar(Location),
 }
 
 pub struct Lexer<'input> {
@@ -202,12 +204,7 @@ impl<'input> Lexer<'input> {
         (start_loc, t, end_loc)
     }
 
-    fn next_ident(&mut self) -> Span {
-        let start = self.index;
-        let start_loc = self.loc();
-
-        self.next_char();
-
+    fn next_ident(&mut self, start: usize, start_loc: Location) -> Span {
         while let Some(c) = self.peek_char() {
             if !c.is_ascii_alphanumeric() && c != '_' {
                 break;
@@ -223,7 +220,10 @@ impl<'input> Lexer<'input> {
         (start_loc, t, end_loc)
     }
 
-    fn next_quoted_str_literal(&mut self) -> Span {
+    fn next_quoted_str_literal<F>(&mut self, new_str_token: F) -> Span
+    where
+        F: FnOnce(String) -> Token
+    {
         let start = self.index;
         let start_loc = self.loc();
 
@@ -240,7 +240,7 @@ impl<'input> Lexer<'input> {
 
         let id = &self.raw_chars[(start + 1)..(end - 1)];
 
-        let t = Token::QuotedStrLiteral(id.to_string());
+        let t = new_str_token(id.to_string());
 
         (start_loc, t, end_loc)
     }
@@ -318,9 +318,27 @@ impl<'input> Iterator for Lexer<'input> {
             } else if c.is_ascii_digit() {
                 Ok(self.next_int())
             } else if c == '$' {
-                Ok(self.next_ident())
+                // TODO Consider abstracting these out of this section in order
+                // to keep clarity between the different blocks.
+                let start = self.index;
+                let start_loc = self.loc();
+
+                self.next_char();
+
+                let next_c =
+                    if let Some(c) = self.peek_char() {
+                        c
+                    } else {
+                        return Some(Err(LexError::UnexpectedEofAfterDollar(self.loc())))
+                    };
+
+                if next_c == '\'' {
+                    Ok(self.next_quoted_str_literal(|s| Token::InterpolatedStrLiteral(s)))
+                } else {
+                    Ok(self.next_ident(start, start_loc))
+                }
             } else if c == '\'' {
-                Ok(self.next_quoted_str_literal())
+                Ok(self.next_quoted_str_literal(|s| Token::QuotedStrLiteral(s)))
             } else {
                 if let Some(t) = self.next_symbol_token(c) {
                     Ok(t)

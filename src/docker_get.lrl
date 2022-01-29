@@ -57,7 +57,7 @@ fn $download_url_from_mirror($mirror, $default) {
 }
 
 fn $command_exists($name) {
-    let [$_, $err] = sh::'-c':('command -v ' + $name)?;
+    let [$_, $err] = sh::'-c':($'command -v {$name}')?;
     return $err == null;
 }
 
@@ -101,7 +101,7 @@ fn $check_forked() {
 }
 
 fn $install($script_commit_sha, $is_dry_run) {
-    $print('# Executing docker install script, commit: ' + $script_commit_sha);
+    $print($'# Executing docker install script, commit: {$script_commit_sha}');
 
     if $command_exists('docker') {
         $print('TODO');
@@ -150,7 +150,7 @@ fn $get_distribution() {
     let $fname = '/etc/os-release';
     let $dist = '';
     if $is_file_readable($fname) {
-        $dist = sh::'-c':('. ' + $fname + ' && echo "$ID"').stdout;
+        $dist = sh::'-c':($'. {$fname} && echo "$ID"').stdout;
     }
     return $dist->trim_right()->to_lower();
 }
@@ -172,12 +172,12 @@ fn $get_dist_version($lsb_dist) {
             return '';
         }
 
-        let $dist = sh::'-c':('. ' + $fname + ' && echo "$DISTRIB_CODENAME"').stdout;
+        let $dist = sh::'-c':($'. {$fname} && echo "$DISTRIB_CODENAME"').stdout;
         return $dist->trim_right();
     } else if $lsb_dist == 'debian' || $lsb_dist == 'raspbian' {
         let $dist_version = sed:('s/\/.*//', '/etc/debian_version').stdout->trim_right();
 
-        'TODO Implement piping; the above output needs to be piped to `sed`';
+        # TODO Implement piping; the above output needs to be piped to `sed`.
 
         if $dist_version == '11' {
             return 'bullseye';
@@ -192,7 +192,7 @@ fn $get_dist_version($lsb_dist) {
     } else if $lsb_dist == 'cestos' || $lsb_dist == 'rhel' || $lsb_dist == 'sles' {
         let $fname = '/etc/os-release';
         if $is_file_readable($fname) {
-            $vsn = sh::'-c':('. ' + $fname + ' && echo "$VERSION_ID"').stdout;
+            $vsn = sh::'-c':($'. {$fname} && echo "$VERSION_ID"').stdout;
             return $vsn->trim_right()->to_lower();
         }
     } else {
@@ -203,7 +203,7 @@ fn $get_dist_version($lsb_dist) {
 
         let $fname = '/etc/os-release';
         if $is_file_readable($fname) {
-            $vsn = sh::'-c':('. ' + $fname + ' && echo "$VERSION_ID"').stdout;
+            $vsn = sh::'-c':($'. {$fname} && echo "$VERSION_ID"').stdout;
             return $vsn->trim_right()->to_lower();
         }
     }

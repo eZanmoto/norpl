@@ -1,4 +1,4 @@
-// Copyright 2021 Sean Kelleher. All rights reserved.
+// Copyright 2021-2022 Sean Kelleher. All rights reserved.
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
@@ -364,6 +364,7 @@ fn bind_(
         Expr::Bool{..} => Err(format!("cannot bind to a boolean literal")),
         Expr::Int{..} => Err(format!("cannot bind to an integer literal")),
         Expr::Str{..} => Err(format!("cannot bind to a string literal")),
+        Expr::InterpolatedStr{..} => Err(format!("cannot bind to an interpolated string literal")),
         Expr::Subcommand{..} => Err(format!("cannot bind to a subcommand")),
         Expr::UnaryOp{..} => Err(format!("cannot bind to a unary operation")),
         Expr::BinaryOp{..} => Err(format!("cannot bind to a binary operation")),
@@ -646,6 +647,13 @@ fn eval_expr(
         Expr::Int{n} => Ok(value::new_int(n.clone())),
 
         Expr::Str{s} => Ok(value::new_str_from_string(s.clone())),
+
+        Expr::InterpolatedStr{s} => {
+            let raw_str = s.clone().into_bytes();
+            let interpolated_str = interpolate_str(scopes, raw_str)?;
+
+            Ok(value::new_str(interpolated_str))
+        },
 
         Expr::List{xs} => {
             let mut vals = vec![];
@@ -1421,4 +1429,84 @@ fn eval_expr_to_str(
         Value::Str(s) => Ok(s.clone()),
         _ => Err(format!("{} must be a string", name)),
     })
+}
+
+fn interpolate_str(scopes: &mut ScopeStack, s: Vec<u8>) -> Result<Str, String> {
+    // TODO Add the string index to error strings.
+
+    let mut interpolated_str: Vec<u8> = vec![];
+
+    let open_brace: u8 = 0x7b;
+    let close_brace: u8 = 0x7d;
+    let dollar: u8 = 0x24;
+
+    let mut scanner = s.iter();
+
+    while let Some(&c) = scanner.next() {
+        if c == open_brace {
+            let next_c =
+                if let Some(&c) = scanner.next() {
+                    c
+                } else {
+                    return Err(format!("unexpected end-of-string when starting interpolation"))
+                };
+
+            if next_c == open_brace {
+                interpolated_str.push(next_c);
+            } else if next_c == dollar {
+                let mut raw_ident = vec![];
+                loop {
+                    if let Some(&ident_c) = scanner.next() {
+                        if ident_c == close_brace {
+                            break;
+                        }
+
+                        // TODO Validate `ident_c` is a valid identifier character.
+                        raw_ident.push(ident_c);
+                    } else {
+                        return Err(format!("unexpected end-of-string when ending interpolation"));
+                    }
+                }
+
+                let ident =
+                    match String::from_utf8(raw_ident.to_vec()) {
+                        Ok(s) => s,
+                        Err(e) => return Err(format!("couldn't convert identifier to UTF-8: {}", e))
+                    };
+
+                let v =
+                    if let Some(v) = scopes.get(&ident) {
+                        v
+                    } else {
+                        // TODO Standardise the wording of this error with
+                        // similar errors.
+                        return Err(format!("'{}' is not defined", ident));
+                    };
+
+                // TODO Handle non-`Str` types.
+                match &(*v.lock().unwrap()).v {
+                    Value::Str(s) => interpolated_str.append(&mut s.clone()),
+                    _ => return Err(format!("only strings are currently allowed as interpolation variables")),
+                };
+            } else {
+                // TODO Render argument as character.
+                return Err(format!("expected '{{' or '$', got '{}'", next_c));
+            }
+        } else if c == close_brace {
+            if let Some(&next_c) = scanner.next() {
+                if next_c == close_brace {
+                    interpolated_str.push(next_c);
+                } else {
+                    // TODO Render argument as character.
+                    return Err(format!("expected '}}', got '{}'", next_c));
+                }
+            } else {
+                return Err(format!("expected '}}', got end-of-string"));
+            };
+        } else {
+            interpolated_str.push(c);
+        }
+    }
+
+    Ok(interpolated_str)
 }
