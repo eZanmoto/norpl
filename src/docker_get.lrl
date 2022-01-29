@@ -16,7 +16,7 @@ fn $main() {
 }
 
 fn $env_or($name, $default) {
-    let [$v, $ok] = $proc.env.[$name];
+    let [$v, $ok] = $proc.env[$name]?;
     if $ok {
         return $v;
     }
@@ -78,7 +78,7 @@ fn $calver_compare($a, $b) {
 }
 
 fn $is_dry_run() {
-    let [$_, $ok] = $proc.env.[DRY_RUN];
+    let [$_, $ok] = $proc.env[DRY_RUN]?;
     return $ok;
 }
 

@@ -296,11 +296,7 @@ fn bind_(
             }
         },
 
-        Expr::Index{expr, location, safe} => {
-            if safe {
-                return Err(format!("can't assign to safe index"));
-            }
-
+        Expr::Index{expr, location} => {
             match_eval_expr!((scopes, builtins, &expr) {
                 Value::List(xs) => {
                     let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
@@ -693,55 +689,23 @@ fn eval_expr(
             Ok(value::new_list(range))
         },
 
-        Expr::Index{expr, location, safe} => {
+        Expr::Index{expr, location} => {
             let source = eval_expr(scopes, builtins, expr)?;
             match &(*source.lock().unwrap()).v {
                 Value::Str(s) => {
                     let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
-                    if *safe {
-                        let v =
-                            match s.get(n as usize) {
-                                Some(v) => value::new_list(vec![
-                                    value::new_str(vec![*v]),
-                                    value::new_bool(true),
-                                ]),
-                                None => value::new_list(vec![
-                                    value::new_null(),
-                                    value::new_bool(false),
-                                ]),
-                            };
-
-                        return Ok(v);
-                    } else {
-                        match s.get(n as usize) {
-                            Some(v) => return Ok(value::new_str(vec![*v])),
-                            None => return Err(format!("index out of bounds")),
-                        };
-                    }
+                    match s.get(n as usize) {
+                        Some(v) => return Ok(value::new_str(vec![*v])),
+                        None => return Err(format!("index out of bounds")),
+                    };
                 },
 
                 Value::List(xs) => {
                     let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
-                    if *safe {
-                        let v =
-                            match xs.get(n as usize) {
-                                Some(v) => value::new_list(vec![
-                                    v.clone(),
-                                    value::new_bool(true),
-                                ]),
-                                None => value::new_list(vec![
-                                    value::new_null(),
-                                    value::new_bool(false),
-                                ]),
-                            };
-
-                        return Ok(v);
-                    } else {
-                        match xs.get(n as usize) {
-                            Some(v) => return Ok(v.clone()),
-                            None => return Err(format!("index out of bounds")),
-                        };
-                    }
+                    match xs.get(n as usize) {
+                        Some(v) => return Ok(v.clone()),
+                        None => return Err(format!("index out of bounds")),
+                    };
                 },
 
                 Value::Object(props) => {
@@ -755,42 +719,18 @@ fn eval_expr(
                                     Err(e) => return Err(format!("couldn't convert key to UTF-8: {}", e))
                                 };
 
-                            if *safe {
-                                let v =
-                                    match props.get(&name) {
-                                        Some(v) => {
-                                            let prop_val = &(*v.lock().unwrap()).v;
-                                            value::new_list(vec![
-                                                value::new_val_ref_with_source(
-                                                    prop_val.clone(),
-                                                    source.clone(),
-                                                ),
-                                                value::new_bool(true),
-                                            ])
-                                        },
-                                        None => {
-                                            value::new_list(vec![
-                                                value::new_null(),
-                                                value::new_bool(false),
-                                            ])
-                                        }
-                                    };
-
-                                return Ok(v);
-                            } else {
-                                match props.get(&name) {
-                                    Some(v) => {
-                                        let prop_val = &(*v.lock().unwrap()).v;
-                                        return Ok(value::new_val_ref_with_source(
-                                            prop_val.clone(),
-                                            source.clone(),
-                                        ));
-                                    },
-                                    None => {
-                                        return Err(format!("property name '{}' not found", name));
-                                    },
-                                };
-                            }
+                            match props.get(&name) {
+                                Some(v) => {
+                                    let prop_val = &(*v.lock().unwrap()).v;
+                                    return Ok(value::new_val_ref_with_source(
+                                        prop_val.clone(),
+                                        source.clone(),
+                                    ));
+                                },
+                                None => {
+                                    return Err(format!("property name '{}' not found", name));
+                                },
+                            };
                         },
                         _ => return Err(format!("property name must be a string")),
                     });

@@ -55,9 +55,7 @@ pub enum Expr {
 
     List{xs: Vec<ListItem>},
     Range{start: Box<Expr>, end: Box<Expr>},
-    // TODO `safe` doesn't seem like a very clear field name, it may be worth
-    // considering an alternative name.
-    Index{expr: Box<Expr>, location: Box<Expr>, safe: bool},
+    Index{expr: Box<Expr>, location: Box<Expr>},
     IndexRange{expr: Box<Expr>, start: Option<Box<Expr>>, end: Option<Box<Expr>>},
     Prop{expr: Box<Expr>, name: String, prototype: bool},
     Subcommand{expr: Box<Expr>, name: String},

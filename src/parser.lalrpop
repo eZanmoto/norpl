@@ -115,11 +115,8 @@ pub Application: Expr = {
     <expr:Application> ":(" <args:ParamList> ")" =>
         Expr::Spawn{expr: Box::new(expr), args: args},
 
-    <expr:Application> ".[" <location:Expr> "]" =>
-        Expr::Index{expr: Box::new(expr), location: Box::new(location), safe: true},
-
     <expr:Application> "[" <location:Expr> "]" =>
-        Expr::Index{expr: Box::new(expr), location: Box::new(location), safe: false},
+        Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 
     <expr:Application> "[" <start:Expr?> ":" <end:Expr?> "]" =>
         Expr::IndexRange{
@@ -288,7 +285,6 @@ extern {
         ":(" => Token::ColonParenOpen,
         "->" => Token::DashGreaterThan,
         "/=" => Token::DivEquals,
-        ".[" => Token::DotBracketOpen,
         ".." => Token::DotDot,
         "==" => Token::EqualsEquals,
         ">" => Token::GreaterThan,
