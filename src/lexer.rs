@@ -61,6 +61,7 @@ pub enum Token {
     LessThanEquals,
     MulEquals,
     OrOr,
+    QuestionQuestion,
     SubEquals,
     SumEquals,
 }
@@ -393,6 +394,7 @@ fn match_double_symbol_token(a: char, b: char) -> Option<Token> {
         ('<', '=') => Some(Token::LessThanEquals),
         ('*', '=') => Some(Token::MulEquals),
         ('|', '|') => Some(Token::OrOr),
+        ('?', '?') => Some(Token::QuestionQuestion),
         ('-', '=') => Some(Token::SubEquals),
         ('+', '=') => Some(Token::SumEquals),
 

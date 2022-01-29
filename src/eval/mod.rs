@@ -371,7 +371,8 @@ fn bind_(
         Expr::Func{..} => Err(format!("cannot bind to a function literal")),
         Expr::Call{..} => Err(format!("cannot bind to a function call")),
         Expr::Spawn{..} => Err(format!("cannot bind to a command spawn")),
-        Expr::Catch{..} => Err(format!("cannot bind to a catch")),
+        Expr::CatchAsBool{..} => Err(format!("cannot bind to a bool catch")),
+        Expr::CatchAsError{..} => Err(format!("cannot bind to an error catch")),
     }
 }
 
@@ -920,7 +921,18 @@ fn eval_expr(
             });
         },
 
-        Expr::Catch{expr} => {
+        Expr::CatchAsBool{expr} => {
+            let maybe_value = eval_expr(scopes, builtins, &expr);
+            let (maybe_value, maybe_err) =
+                match maybe_value {
+                    Ok(v) => (v, value::new_bool(true)),
+                    Err(_) => (value::new_null(), value::new_bool(false)),
+                };
+
+            Ok(value::new_list(vec![maybe_value, maybe_err]))
+        },
+
+        Expr::CatchAsError{expr} => {
             let maybe_value = eval_expr(scopes, builtins, &expr);
             let (maybe_value, maybe_err) =
                 match maybe_value {

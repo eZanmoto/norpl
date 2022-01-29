@@ -57,8 +57,8 @@ fn $download_url_from_mirror($mirror, $default) {
 }
 
 fn $command_exists($name) {
-    let [$_, $err] = sh::'-c':($'command -v {$name}')?;
-    return $err == null;
+    let [$_, $ok] = sh::'-c':($'command -v {$name}')?;
+    return $ok;
 }
 
 fn $version_gte($a, $b) {
@@ -107,8 +107,8 @@ fn $install($script_commit_sha, $is_dry_run) {
         $print('TODO');
     }
 
-    let [$user, $err] = id:('-un')?;
-    if $err != null {
+    let [$user, $ok] = id:('-un')?;
+    if !$ok {
         $user = '';
     }
     $print($user);
@@ -212,8 +212,8 @@ fn $get_dist_version($lsb_dist) {
 }
 
 fn $is_file_readable($path) {
-    let [$_, $err] = test:('-r', $path)?;
-    return $err == null;
+    let [$_, $ok] = test:('-r', $path)?;
+    return $ok;
 }
 
 $main();

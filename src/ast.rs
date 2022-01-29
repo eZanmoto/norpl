@@ -61,7 +61,8 @@ pub enum Expr {
     IndexRange{expr: Box<Expr>, start: Option<Box<Expr>>, end: Option<Box<Expr>>},
     Prop{expr: Box<Expr>, name: String, prototype: bool},
     Subcommand{expr: Box<Expr>, name: String},
-    Catch{expr: Box<Expr>},
+    CatchAsBool{expr: Box<Expr>},
+    CatchAsError{expr: Box<Expr>},
 
     Object{props: Vec<PropItem>},
 

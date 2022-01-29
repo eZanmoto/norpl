@@ -78,7 +78,8 @@ pub Expr: Expr = {
     <start:Expr> ".." <end:Term> =>
         Expr::Range{start: Box::new(start), end: Box::new(end)},
 
-    <expr:Expr> "?" => Expr::Catch{expr: Box::new(expr)},
+    <expr:Expr> "?" => Expr::CatchAsBool{expr: Box::new(expr)},
+    <expr:Expr> "??" => Expr::CatchAsError{expr: Box::new(expr)},
 
     <expr:Term> => expr,
 }
@@ -296,6 +297,7 @@ extern {
         "<=" => Token::LessThanEquals,
         "*=" => Token::MulEquals,
         "||" => Token::OrOr,
+        "??" => Token::QuestionQuestion,
         "-=" => Token::SubEquals,
         "+=" => Token::SumEquals,
     }
