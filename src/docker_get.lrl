@@ -87,17 +87,57 @@ fn $is_darwin() {
     return $uname_r->contains('darwin') || $uname_r->contains('Darwin');
 }
 
-fn $deprecation_notice($distro) {
-    let {$name, $vsn} = $distro;
-    $print('TODO');
+fn $deprecation_notice($distro, $distro_vsn) {
+    $print('DEPRECATION WARNING {$distro} {$distro_version}');
+
+    sleep:('10');
 }
 
 fn $echo_docker_as_nonroot() {
     $print('TODO');
 }
 
-fn $check_forked() {
-    $print('TODO');
+fn $check_forked($lsb_dist, $dist_version) {
+    if !$command_exists('lsb_release') {
+        return null;
+    }
+
+    let [$lr, $ok] = lsb_release:('-a', '-u')?;
+    if !$ok {
+        $print($lr.stderr);
+        $proc.exit();
+    }
+
+    if $lr.exit_code == 0 {
+        $print('You"re using "{$lsb_dist}" version "{$dist_version}".');
+
+        let $lsb_dist = $lr.stdout->to_lower();
+        let $dist_version = $lr.stdout->to_lower();
+        # TODO Implement piping; the above output needs to be piped to `grep`.
+
+        $print('Upstream release is "{$lsb_dist}" version "{$dist_version}".');
+
+        return {lsb_dist, dist_version};
+    }
+
+    if
+        !$is_file_readable('/etc/debian_version')
+        || $lsb_dist == 'ubuntu'
+        || $lsb_dist == 'raspbian'
+    {
+        return null;
+    }
+
+    if $lsb_dist == 'osmc' {
+        $lsb_dist = 'raspbian';
+    } else {
+        $lsb_dist = 'debian';
+    }
+
+    return {
+        lsb_dist,
+        dist_version: $get_debian_version(),
+    };
 }
 
 fn $install($script_commit_sha, $is_dry_run) {
@@ -128,6 +168,24 @@ fn $install($script_commit_sha, $is_dry_run) {
 
     let $dist_version = $get_dist_version($lsb_dist);
     $print($dist_version);
+
+    let $forked_version = $check_forked($lsb_dist, $dist_version);
+    if $forked_version != null {
+        {lsb_dist, dist_version} = $forked_version;
+    }
+
+    let $dist_pair = $'{$lsb_dist}.{$dist_version}';
+    if
+        $dist_pair == 'debian.stretch' || $dist_pair == 'debian.jessie'
+        || $dist_pair == 'raspbian.stretch' || $dist_pair == 'raspbian.jessie'
+        || $dist_pair == 'ubuntu.xenial' || $dist_pair == 'ubuntu.trusty'
+        # TODO Add support for short-circuit evaluation, so that when `fedora`
+        # isn't matched, we don't attempt to compare a string to an integer.
+        # TODO Add support for parsing integers from strings.
+        # || ($lsb_dist == 'fedora' && $dist_version < 33)
+    {
+        $deprecation_notice($lsb_dist, dist_version);
+    }
 }
 
 fn $get_sh_c_subcommand($user) {
@@ -175,20 +233,7 @@ fn $get_dist_version($lsb_dist) {
         let $dist = sh::'-c':($'. {$fname} && echo "$DISTRIB_CODENAME"').stdout;
         return $dist->trim_right();
     } else if $lsb_dist == 'debian' || $lsb_dist == 'raspbian' {
-        let $dist_version = sed:('s/\/.*//', '/etc/debian_version').stdout->trim_right();
-
-        # TODO Implement piping; the above output needs to be piped to `sed`.
-
-        if $dist_version == '11' {
-            return 'bullseye';
-        } else if $dist_version == '10' {
-            return 'buster';
-        } else if $dist_version == '9' {
-            return 'stretch';
-        } else if $dist_version == '8' {
-            return 'jessie';
-        }
-        return $dist_version;
+        return $get_debian_version();
     } else if $lsb_dist == 'cestos' || $lsb_dist == 'rhel' || $lsb_dist == 'sles' {
         let $fname = '/etc/os-release';
         if $is_file_readable($fname) {
@@ -209,6 +254,23 @@ fn $get_dist_version($lsb_dist) {
     }
 
     return '';
+}
+
+fn $get_debian_version() {
+    let $dist_version = sed:('s/\/.*//', '/etc/debian_version').stdout->trim_right();
+
+    # TODO Implement piping; the above output needs to be piped to `sed`.
+
+    if $dist_version == '11' {
+        return 'bullseye';
+    } else if $dist_version == '10' {
+        return 'buster';
+    } else if $dist_version == '9' {
+        return 'stretch';
+    } else if $dist_version == '8' {
+        return 'jessie';
+    }
+    return $dist_version;
 }
 
 fn $is_file_readable($path) {
