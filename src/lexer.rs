@@ -12,7 +12,6 @@ pub enum Token {
     QuotedStrLiteral(String),
     UnquotedStrLiteral(String),
 
-    Const,
     Else,
     False,
     Fn,
@@ -20,7 +19,6 @@ pub enum Token {
     If,
     Import,
     In,
-    Let,
     Null,
     Return,
     True,
@@ -50,9 +48,11 @@ pub enum Token {
     AndAnd,
     BangEquals,
     ColonColon,
+    ColonEquals,
     ColonParenOpen,
     DashGreaterThan,
     DivEquals,
+    DollarEquals,
     DotDot,
     EqualsEquals,
     GreaterThanEquals,
@@ -163,14 +163,12 @@ impl<'input> Lexer<'input> {
 
         let t =
             match &self.raw_chars[start..end] {
-                "const" => Token::Const,
                 "else" => Token::Else,
                 "fn" => Token::Fn,
                 "for" => Token::For,
                 "if" => Token::If,
                 "import" => Token::Import,
                 "in" => Token::In,
-                "let" => Token::Let,
                 "null" => Token::Null,
                 "return" => Token::Return,
                 "while" => Token::While,
@@ -201,6 +199,13 @@ impl<'input> Lexer<'input> {
         let t = Token::IntLiteral(int);
 
         (start_loc, t, end_loc)
+    }
+
+    fn next_dollar_equals(&mut self, start_loc: Location) -> Span {
+        self.next_char();
+        let end_loc = self.loc();
+
+        (start_loc, Token::DollarEquals, end_loc)
     }
 
     fn next_ident(&mut self, start: usize, start_loc: Location) -> Span {
@@ -333,6 +338,8 @@ impl<'input> Iterator for Lexer<'input> {
 
                 if next_c == '\'' {
                     Ok(self.next_quoted_str_literal(|s| Token::InterpolatedStrLiteral(s)))
+                } else if next_c == '=' {
+                    Ok(self.next_dollar_equals(start_loc))
                 } else {
                     Ok(self.next_ident(start, start_loc))
                 }
@@ -382,6 +389,7 @@ fn match_double_symbol_token(a: char, b: char) -> Option<Token> {
         ('&', '&') => Some(Token::AndAnd),
         ('!', '=') => Some(Token::BangEquals),
         (':', ':') => Some(Token::ColonColon),
+        (':', '=') => Some(Token::ColonEquals),
         (':', '(') => Some(Token::ColonParenOpen),
         ('-', '>') => Some(Token::DashGreaterThan),
         ('/', '=') => Some(Token::DivEquals),

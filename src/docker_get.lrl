@@ -1,14 +1,14 @@
 import 'proc';
 
 fn $main() {
-    let $script_commit_sha = '93d2499759296ac1f9c510605fef85052a2c32be';
+    $script_commit_sha := '93d2499759296ac1f9c510605fef85052a2c32be';
 
-    let $version = $env_or(VERSION, '')->strip_prefix('v');
-    let $channel = $env_or(DEFAULT_CHANNEL_VALUE, 'stable');
-    let $download_url = $env_or(DEFAULT_DOWNLOAD_URL, 'https://download.docker.com');
-    let $repo_file = $env_or(DEFAULT_REPO_FILE, 'docker-ce.repo');
+    $version := $env_or(VERSION, '')->strip_prefix('v');
+    $channel := $env_or(DEFAULT_CHANNEL_VALUE, 'stable');
+    $download_url $= $env_or(DEFAULT_DOWNLOAD_URL, 'https://download.docker.com');
+    $repo_file := $env_or(DEFAULT_REPO_FILE, 'docker-ce.repo');
 
-    let $args = $parse_args();
+    $args := $parse_args();
 
     $download_url = $download_url_from_mirror($args.mirror, $download_url);
 
@@ -16,7 +16,7 @@ fn $main() {
 }
 
 fn $env_or($name, $default) {
-    let [$v, $ok] = $proc.env[$name]?;
+    [$v, $ok] := $proc.env[$name]?;
     if $ok {
         return $v;
     }
@@ -24,11 +24,11 @@ fn $env_or($name, $default) {
 }
 
 fn $parse_args() {
-    let $args = {mirror: ''};
+    $args := {mirror: ''};
 
-    let $i = 0;
+    $i := 0;
     while $i < $proc.args->len() {
-        let $arg = $proc.args[$i];
+        $arg := $proc.args[$i];
 
         if $arg == '--mirror' {
             $args.mirror = $proc.args[$i + 1];
@@ -57,7 +57,7 @@ fn $download_url_from_mirror($mirror, $default) {
 }
 
 fn $command_exists($name) {
-    let [$_, $ok] = sh::'-c':($'command -v {$name}')?;
+    [$_, $ok] := sh::'-c':($'command -v {$name}')?;
     return $ok;
 }
 
@@ -66,8 +66,8 @@ fn $version_gte($a, $b) {
 }
 
 fn $calver_compare($a, $b) {
-    let [$yy_a, $mm_a] = $a->split('.')->map($int);
-    let [$yy_b, $mm_b] = $b->split('.')->map($int);
+    [$yy_a, $mm_a] := $a->split('.')->map($int);
+    [$yy_b, $mm_b] := $b->split('.')->map($int);
 
     if $yy_a < $yy_b {
         return false;
@@ -78,12 +78,12 @@ fn $calver_compare($a, $b) {
 }
 
 fn $is_dry_run() {
-    let [$_, $ok] = $proc.env[DRY_RUN]?;
+    [$_, $ok] := $proc.env[DRY_RUN]?;
     return $ok;
 }
 
 fn $is_darwin() {
-    let $uname_r = uname:('-r').stdout;
+    $uname_r := uname:('-r').stdout;
     return $uname_r->contains('darwin') || $uname_r->contains('Darwin');
 }
 
@@ -102,7 +102,7 @@ fn $check_forked($lsb_dist, $dist_version) {
         return null;
     }
 
-    let [$lr, $ok] = lsb_release:('-a', '-u')?;
+    [$lr, $ok] := lsb_release:('-a', '-u')?;
     if !$ok {
         $print($lr.stderr);
         $proc.exit();
@@ -111,8 +111,8 @@ fn $check_forked($lsb_dist, $dist_version) {
     if $lr.exit_code == 0 {
         $print('You"re using "{$lsb_dist}" version "{$dist_version}".');
 
-        let $lsb_dist = $lr.stdout->to_lower();
-        let $dist_version = $lr.stdout->to_lower();
+        $lsb_dist := $lr.stdout->to_lower();
+        $dist_version := $lr.stdout->to_lower();
         # TODO Implement piping; the above output needs to be piped to `grep`.
 
         $print('Upstream release is "{$lsb_dist}" version "{$dist_version}".');
@@ -147,34 +147,34 @@ fn $install($script_commit_sha, $is_dry_run) {
         $print('TODO');
     }
 
-    let [$user, $ok] = id:('-un')?;
+    [$user, $ok] $= id:('-un')?;
     if !$ok {
         $user = '';
     }
     $print($user);
 
-    let $sh_c = $get_sh_c_subcommand($user);
+    $sh_c $= $get_sh_c_subcommand($user);
     if $is_dry_run {
         $sh_c = echo;
     }
     $print($sh_c);
 
-    let $lsb_dist = $get_distribution();
+    $lsb_dist := $get_distribution();
     $print($lsb_dist);
 
     if $is_wsl() {
         $panic('WSL DETECTED: We recommend... TODO');
     }
 
-    let $dist_version = $get_dist_version($lsb_dist);
+    $dist_version := $get_dist_version($lsb_dist);
     $print($dist_version);
 
-    let $forked_version = $check_forked($lsb_dist, $dist_version);
+    $forked_version $= $check_forked($lsb_dist, $dist_version);
     if $forked_version != null {
         {lsb_dist, dist_version} = $forked_version;
     }
 
-    let $dist_pair = $'{$lsb_dist}.{$dist_version}';
+    $dist_pair := $'{$lsb_dist}.{$dist_version}';
     if
         $dist_pair == 'debian.stretch' || $dist_pair == 'debian.jessie'
         || $dist_pair == 'raspbian.stretch' || $dist_pair == 'raspbian.jessie'
@@ -205,8 +205,8 @@ fn $get_sh_c_subcommand($user) {
 }
 
 fn $get_distribution() {
-    let $fname = '/etc/os-release';
-    let $dist = '';
+    $fname := '/etc/os-release';
+    $dist $= '';
     if $is_file_readable($fname) {
         $dist = sh::'-c':($'. {$fname} && echo "$ID"').stdout;
     }
@@ -214,39 +214,39 @@ fn $get_distribution() {
 }
 
 fn $is_wsl() {
-    let $uname_r = uname:('-r').stdout;
+    $uname_r := uname:('-r').stdout;
     return $uname_r->contains('microsoft') || $uname_r->contains('Microsoft');
 }
 
 fn $get_dist_version($lsb_dist) {
     if $lsb_dist == 'ubuntu' {
         if $command_exists('lsb_release') {
-            let $codename = lsb_release:('--codename').stdout;
+            $codename := lsb_release:('--codename').stdout;
             return $codename->split('\t')[1];
         }
 
-        let $fname = '/etc/lsb-release';
+        $fname := '/etc/lsb-release';
         if !$is_file_readable($fname) {
             return '';
         }
 
-        let $dist = sh::'-c':($'. {$fname} && echo "$DISTRIB_CODENAME"').stdout;
+        $dist := sh::'-c':($'. {$fname} && echo "$DISTRIB_CODENAME"').stdout;
         return $dist->trim_right();
     } else if $lsb_dist == 'debian' || $lsb_dist == 'raspbian' {
         return $get_debian_version();
     } else if $lsb_dist == 'cestos' || $lsb_dist == 'rhel' || $lsb_dist == 'sles' {
-        let $fname = '/etc/os-release';
+        $fname $= '/etc/os-release';
         if $is_file_readable($fname) {
             $vsn = sh::'-c':($'. {$fname} && echo "$VERSION_ID"').stdout;
             return $vsn->trim_right()->to_lower();
         }
     } else {
         if $command_exists('lsb_release') {
-            let $release = lsb_release('--release').stdout;
+            $release := lsb_release('--release').stdout;
             return $release->split('\t')[1];
         }
 
-        let $fname = '/etc/os-release';
+        $fname $= '/etc/os-release';
         if $is_file_readable($fname) {
             $vsn = sh::'-c':($'. {$fname} && echo "$VERSION_ID"').stdout;
             return $vsn->trim_right()->to_lower();
@@ -257,7 +257,7 @@ fn $get_dist_version($lsb_dist) {
 }
 
 fn $get_debian_version() {
-    let $dist_version = sed:('s/\/.*//', '/etc/debian_version').stdout->trim_right();
+    $dist_version := sed:('s/\/.*//', '/etc/debian_version').stdout->trim_right();
 
     # TODO Implement piping; the above output needs to be piped to `sed`.
 
@@ -274,7 +274,7 @@ fn $get_debian_version() {
 }
 
 fn $is_file_readable($path) {
-    let [$_, $ok] = test:('-r', $path)?;
+    [$_, $ok] := test:('-r', $path)?;
     return $ok;
 }
 

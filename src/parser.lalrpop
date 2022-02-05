@@ -18,8 +18,8 @@ pub Stmt: Stmt = {
 
     "import" <name:QuotedStrLiteral> ";" => Stmt::Import{name},
 
-    "let" <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Var},
-    "const" <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Const},
+    <lhs:Expr> "$=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Var},
+    <lhs:Expr> ":=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Const},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
 
     <lhs:Expr> "+=" <rhs:Expr> ";" => Stmt::OpAssign{lhs, op: BinaryOp::Sum, rhs},
@@ -245,7 +245,6 @@ extern {
         "quoted_str_literal" => Token::QuotedStrLiteral(<String>),
         "unquoted_str_literal" => Token::UnquotedStrLiteral(<String>),
 
-        "const" => Token::Const,
         "else" => Token::Else,
         "false" => Token::False,
         "fn" => Token::Fn,
@@ -253,7 +252,6 @@ extern {
         "if" => Token::If,
         "import" => Token::Import,
         "in" => Token::In,
-        "let" => Token::Let,
         "null" => Token::Null,
         "return" => Token::Return,
         "true" => Token::True,
@@ -282,9 +280,11 @@ extern {
         "&&" => Token::AndAnd,
         "!=" => Token::BangEquals,
         "::" => Token::ColonColon,
+        ":=" => Token::ColonEquals,
         ":(" => Token::ColonParenOpen,
         "->" => Token::DashGreaterThan,
         "/=" => Token::DivEquals,
+        "$=" => Token::DollarEquals,
         ".." => Token::DotDot,
         "==" => Token::EqualsEquals,
         ">" => Token::GreaterThan,
