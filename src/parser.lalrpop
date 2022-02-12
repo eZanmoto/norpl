@@ -72,72 +72,78 @@ pub IfStmt: (Vec<Branch>, Option<Block>) = {
 }
 
 pub Expr: Expr = {
-    <lhs:Expr> "&&" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::And, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Expr> "||" <rhs:Term> => Expr::BinaryOp{op: BinaryOp::Or, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <expr:ExprPrecedence1> => expr,
+}
 
-    <start:Expr> ".." <end:Term> =>
+// `ExprPrecedence1` defines the most loosely binding expressions. Each
+// increasing precedence indicates a tighter binding.
+pub ExprPrecedence1: Expr = {
+    <lhs:Expr> "&&" <rhs:ExprPrecedence2> => Expr::BinaryOp{op: BinaryOp::And, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:Expr> "||" <rhs:ExprPrecedence2> => Expr::BinaryOp{op: BinaryOp::Or, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+
+    <start:Expr> ".." <end:ExprPrecedence2> =>
         Expr::Range{start: Box::new(start), end: Box::new(end)},
 
     <expr:Expr> "?" => Expr::CatchAsBool{expr: Box::new(expr)},
     <expr:Expr> "??" => Expr::CatchAsError{expr: Box::new(expr)},
 
-    <expr:Term> => expr,
+    <expr:ExprPrecedence2> => expr,
 }
 
-pub Term: Expr = {
-    <lhs:Term> "+" <rhs:Factor> => Expr::BinaryOp{op: BinaryOp::Sum, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Term> "-" <rhs:Factor> => Expr::BinaryOp{op: BinaryOp::Sub, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+pub ExprPrecedence2: Expr = {
+    <lhs:ExprPrecedence2> "+" <rhs:ExprPrecedence3> => Expr::BinaryOp{op: BinaryOp::Sum, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence2> "-" <rhs:ExprPrecedence3> => Expr::BinaryOp{op: BinaryOp::Sub, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
-    <expr:Factor> => expr,
+    <expr:ExprPrecedence3> => expr,
 }
 
-pub Factor: Expr = {
-    "!" <expr:Application> => Expr::UnaryOp{op: UnaryOp::Not, expr: Box::new(expr)},
+pub ExprPrecedence3: Expr = {
+    "!" <expr:ExprPrecedence4> => Expr::UnaryOp{op: UnaryOp::Not, expr: Box::new(expr)},
 
-    <lhs:Factor> "*" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::Mul, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Factor> "/" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::Div, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Factor> "%" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::Mod, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> "*" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::Mul, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> "/" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::Div, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> "%" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::Mod, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
-    <lhs:Factor> "==" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::EQ, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Factor> "!=" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::NE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Factor> ">" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::GT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Factor> ">=" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::GTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Factor> "<" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
-    <lhs:Factor> "<=" <rhs:Application> => Expr::BinaryOp{op: BinaryOp::LTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> "==" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::EQ, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> "!=" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::NE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> ">" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::GT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> ">=" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::GTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> "<" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::LT, lhs: Box::new(lhs), rhs: Box::new(rhs)},
+    <lhs:ExprPrecedence3> "<=" <rhs:ExprPrecedence4> => Expr::BinaryOp{op: BinaryOp::LTE, lhs: Box::new(lhs), rhs: Box::new(rhs)},
 
-    <expr:Application> => expr,
+    <expr:ExprPrecedence4> => expr,
 }
 
-pub Application: Expr = {
-    <expr:Application> "(" <args:ParamList> ")" =>
+pub ExprPrecedence4: Expr = {
+    <expr:ExprPrecedence4> "(" <args:ParamList> ")" =>
         Expr::Call{expr: Box::new(expr), args: args},
 
-    <expr:Application> ":(" <args:ParamList> ")" =>
+    <expr:ExprPrecedence4> ":(" <args:ParamList> ")" =>
         Expr::Spawn{expr: Box::new(expr), args: args},
 
-    <expr:Application> "[" <location:Expr> "]" =>
+    <expr:ExprPrecedence4> "[" <location:Expr> "]" =>
         Expr::Index{expr: Box::new(expr), location: Box::new(location)},
 
-    <expr:Application> "[" <start:Expr?> ":" <end:Expr?> "]" =>
+    <expr:ExprPrecedence4> "[" <start:Expr?> ":" <end:Expr?> "]" =>
         Expr::IndexRange{
             expr: Box::new(expr),
             start: start.map(|v| Box::new(v)),
             end: end.map(|v| Box::new(v)),
         },
 
-    <expr:Application> "." <name:UnquotedStrLiteral> =>
+    <expr:ExprPrecedence4> "." <name:UnquotedStrLiteral> =>
         Expr::Prop{expr: Box::new(expr), name, prototype: false},
 
-    <expr:Application> "->" <name:UnquotedStrLiteral> =>
+    <expr:ExprPrecedence4> "->" <name:UnquotedStrLiteral> =>
         Expr::Prop{expr: Box::new(expr), name, prototype: true},
 
-    <expr:Application> "::" <name:StrLiteral> =>
+    <expr:ExprPrecedence4> "::" <name:StrLiteral> =>
         Expr::Subcommand{expr: Box::new(expr), name},
 
-    <expr:Expr_> => expr,
+    <expr:ExprPrecedence5> => expr,
 }
 
-pub Expr_: Expr = {
+pub ExprPrecedence5: Expr = {
     "null" => Expr::Null,
     "true" => Expr::Bool{b: true},
     "false" => Expr::Bool{b: false},
