@@ -52,7 +52,6 @@ pub enum Token {
     ColonParenOpen,
     DashGreaterThan,
     DivEquals,
-    DollarEquals,
     DotDot,
     EqualsEquals,
     GreaterThanEquals,
@@ -62,12 +61,15 @@ pub enum Token {
     QuestionQuestion,
     SubEquals,
     SumEquals,
+
+    DollarColonEquals,
 }
 
 #[derive(Debug)]
 pub enum LexError {
     Unexpected(Location, char),
-    UnexpectedEofAfterDollar(Location),
+    UnexpectedEofAfterPrefix(Location, String),
+    UnexpectedCharAfterPrefix(Location, String, char),
 }
 
 pub struct Lexer<'input> {
@@ -201,11 +203,26 @@ impl<'input> Lexer<'input> {
         (start_loc, t, end_loc)
     }
 
-    fn next_dollar_equals(&mut self, start_loc: Location) -> Span {
+    fn next_dollar_colon_equals(&mut self, start_loc: Location)
+        -> Result<Span, LexError>
+    {
+        // Match `:`.
         self.next_char();
+
+        let prefix = "$:".to_string();
+        let next_c = self.peek_char();
+        if let Some(c) = next_c {
+            if c != '=' {
+                return Err(LexError::UnexpectedCharAfterPrefix(self.loc(), prefix, c))
+            }
+        } else {
+            return Err(LexError::UnexpectedEofAfterPrefix(self.loc(), prefix))
+        }
+        self.next_char();
+
         let end_loc = self.loc();
 
-        (start_loc, Token::DollarEquals, end_loc)
+        Ok((start_loc, Token::DollarColonEquals, end_loc))
     }
 
     fn next_ident(&mut self, start: usize, start_loc: Location) -> Span {
@@ -333,13 +350,14 @@ impl<'input> Iterator for Lexer<'input> {
                     if let Some(c) = self.peek_char() {
                         c
                     } else {
-                        return Some(Err(LexError::UnexpectedEofAfterDollar(self.loc())))
+                        let prefix = "$".to_string();
+                        return Some(Err(LexError::UnexpectedEofAfterPrefix(self.loc(), prefix)))
                     };
 
                 if next_c == '\'' {
                     Ok(self.next_quoted_str_literal(|s| Token::InterpolatedStrLiteral(s)))
-                } else if next_c == '=' {
-                    Ok(self.next_dollar_equals(start_loc))
+                } else if next_c == ':' {
+                    self.next_dollar_colon_equals(start_loc)
                 } else {
                     Ok(self.next_ident(start, start_loc))
                 }

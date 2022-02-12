@@ -18,7 +18,7 @@ pub Stmt: Stmt = {
 
     "import" <name:QuotedStrLiteral> ";" => Stmt::Import{name},
 
-    <lhs:Expr> "$=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Var},
+    <lhs:Expr> "$:=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Var},
     <lhs:Expr> ":=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Const},
     <lhs:Expr> "=" <rhs:Expr> ";" => Stmt::Assign{lhs, rhs},
 
@@ -284,7 +284,6 @@ extern {
         ":(" => Token::ColonParenOpen,
         "->" => Token::DashGreaterThan,
         "/=" => Token::DivEquals,
-        "$=" => Token::DollarEquals,
         ".." => Token::DotDot,
         "==" => Token::EqualsEquals,
         ">" => Token::GreaterThan,
@@ -296,5 +295,7 @@ extern {
         "??" => Token::QuestionQuestion,
         "-=" => Token::SubEquals,
         "+=" => Token::SumEquals,
+
+        "$:=" => Token::DollarColonEquals,
     }
 }

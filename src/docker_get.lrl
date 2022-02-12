@@ -5,7 +5,7 @@ fn $main() {
 
     $version := $env_or(VERSION, '')->strip_prefix('v');
     $channel := $env_or(DEFAULT_CHANNEL_VALUE, 'stable');
-    $download_url $= $env_or(DEFAULT_DOWNLOAD_URL, 'https://download.docker.com');
+    $download_url $:= $env_or(DEFAULT_DOWNLOAD_URL, 'https://download.docker.com');
     $repo_file := $env_or(DEFAULT_REPO_FILE, 'docker-ce.repo');
 
     $args := $parse_args();
@@ -147,13 +147,13 @@ fn $install($script_commit_sha, $is_dry_run) {
         $print('TODO');
     }
 
-    [$user, $ok] $= id:('-un')?;
+    [$user, $ok] $:= id:('-un')?;
     if !$ok {
         $user = '';
     }
     $print($user);
 
-    $sh_c $= $get_sh_c_subcommand($user);
+    $sh_c $:= $get_sh_c_subcommand($user);
     if $is_dry_run {
         $sh_c = echo;
     }
@@ -169,7 +169,7 @@ fn $install($script_commit_sha, $is_dry_run) {
     $dist_version := $get_dist_version($lsb_dist);
     $print($dist_version);
 
-    $forked_version $= $check_forked($lsb_dist, $dist_version);
+    $forked_version $:= $check_forked($lsb_dist, $dist_version);
     if $forked_version != null {
         {lsb_dist, dist_version} = $forked_version;
     }
@@ -206,7 +206,7 @@ fn $get_sh_c_subcommand($user) {
 
 fn $get_distribution() {
     $fname := '/etc/os-release';
-    $dist $= '';
+    $dist $:= '';
     if $is_file_readable($fname) {
         $dist = sh::'-c':($'. {$fname} && echo "$ID"').stdout;
     }
@@ -235,7 +235,7 @@ fn $get_dist_version($lsb_dist) {
     } else if $lsb_dist == 'debian' || $lsb_dist == 'raspbian' {
         return $get_debian_version();
     } else if $lsb_dist == 'cestos' || $lsb_dist == 'rhel' || $lsb_dist == 'sles' {
-        $fname $= '/etc/os-release';
+        $fname $:= '/etc/os-release';
         if $is_file_readable($fname) {
             $vsn = sh::'-c':($'. {$fname} && echo "$VERSION_ID"').stdout;
             return $vsn->trim_right()->to_lower();
@@ -246,7 +246,7 @@ fn $get_dist_version($lsb_dist) {
             return $release->split('\t')[1];
         }
 
-        $fname $= '/etc/os-release';
+        $fname $:= '/etc/os-release';
         if $is_file_readable($fname) {
             $vsn = sh::'-c':($'. {$fname} && echo "$VERSION_ID"').stdout;
             return $vsn->trim_right()->to_lower();
