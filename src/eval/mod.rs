@@ -243,7 +243,7 @@ fn value_to_pairs(v: &Value)
                     })
                     .collect(),
 
-            Value::Object(props) =>
+            Value::Object{props, ..} =>
                 props
                     .iter()
                     .map(|(key, value)| {
@@ -318,9 +318,13 @@ fn bind_(
                     list[n as usize] = rhs;
                 },
 
-                Value::Object(props) => {
+                Value::Object{props, is_mutable} => {
                     match_eval_expr!((scopes, builtins, &location) {
                         Value::Str(raw_str) => {
+                            if !*is_mutable {
+                                return Err(format!("cannot assign to a property of an immutable object"));
+                            }
+
                             // TODO Consider whether non-UTF-8 strings can be
                             // used as keys for objects.
                             let s =
@@ -347,17 +351,32 @@ fn bind_(
             }
 
             match_eval_expr!((scopes, builtins, &expr) {
-                Value::Object(props) => props.insert(name, rhs),
-                _ => return Err(format!("can only assign to properties of objects")),
+                Value::Object{props, is_mutable} => {
+                    if !*is_mutable {
+                        return Err(format!("cannot assign to a property of an immutable object"));
+                    }
+                    props.insert(name, rhs);
+                },
+                _ => {
+                    return Err(format!("can only assign to properties of objects"));
+                },
             });
 
             Ok(())
         },
 
-        Expr::Object{props: lhs_props} => {
+        Expr::Object{props: lhs_props, is_mutable: lhs_is_mutable} => {
             match &(*rhs.lock().unwrap()).v {
-                Value::Object(rhs_props) => {
-                    bind_object(scopes, builtins, already_declared, lhs_props, rhs_props.clone(), bt)
+                Value::Object{props: rhs_props, ..} => {
+                    bind_object(
+                        scopes,
+                        builtins,
+                        already_declared,
+                        lhs_props,
+                        lhs_is_mutable,
+                        rhs_props.clone(),
+                        bt,
+                    )
                 },
                 _ => {
                     Err(format!("can't destructure non-object into object"))
@@ -498,13 +517,9 @@ fn bind_unspread_list(
 
     match unspread_expr {
         Expr::Var{name} => {
-            let mutability =
-                if lhs_is_mutable {
-                    Mutability::Mutable
-                } else {
-                    Mutability::Immutable
-                };
+            let mutability = new_mutability_from_is_mutable(lhs_is_mutable);
             let list = value::new_list(rhs_rest, mutability);
+
             bind_name_(scopes, &mut already_declared, name, list, bt)
         }
         _ => {
@@ -543,6 +558,7 @@ fn bind_object(
     builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<PropItem>,
+    lhs_is_mutable: bool,
     rhs: HashMap<String,ValRefWithSource>,
     bt: BindType,
 )
@@ -582,7 +598,8 @@ fn bind_object(
                         }
 
                         let lhs = Expr::Var{name: name.clone()};
-                        let new_rhs = value::new_object(props);
+                        let mutability = new_mutability_from_is_mutable(lhs_is_mutable);
+                        let new_rhs = value::new_object(props, mutability);
                         if let Err(e) = bind_(scopes, builtins, &mut already_declared, lhs, new_rhs, bt) {
                             return Err(format!("couldn't bind '{}': {}", name, e));
                         }
@@ -702,12 +719,7 @@ fn eval_expr(
                 };
             }
 
-            let mutability =
-                if *is_mutable {
-                    Mutability::Mutable
-                } else {
-                    Mutability::Immutable
-                };
+            let mutability = new_mutability_from_is_mutable(*is_mutable);
 
             Ok(value::new_list(vals, mutability))
         },
@@ -742,7 +754,7 @@ fn eval_expr(
                     };
                 },
 
-                Value::Object(props) => {
+                Value::Object{props, ..} => {
                     match_eval_expr!((scopes, builtins, &location) {
                         Value::Str(raw_name) => {
                             // TODO Consider whether non-UTF-8 strings can be
@@ -850,7 +862,7 @@ fn eval_expr(
                 }
             } else {
                 match &(*value.lock().unwrap()).v {
-                    Value::Object(props) => {
+                    Value::Object{props, ..} => {
                         match props.get(name) {
                             Some(v) => {
                                 let prop_val = &(*v.lock().unwrap()).v;
@@ -917,7 +929,7 @@ fn eval_expr(
             Ok(value::new_list(vec![maybe_value, maybe_err], Mutability::Immutable))
         },
 
-        Expr::Object{props} => {
+        Expr::Object{props, is_mutable} => {
             let mut vals = HashMap::<String, ValRefWithSource>::new();
 
             for prop in props {
@@ -939,12 +951,12 @@ fn eval_expr(
                     },
                     PropItem::Single{expr, is_spread, is_unspread} => {
                         if *is_unspread {
-                            return Err(format!("can't use unspread operator in objectliteral"));
+                            return Err(format!("can't use unspread operator in object literal"));
                         }
 
                         if *is_spread {
                             match_eval_expr!((scopes, builtins, &expr) {
-                                Value::Object(props) => {
+                                Value::Object{props, ..} => {
                                     for (name, value) in props.iter() {
                                         vals.insert(name.to_string(), value.clone());
                                     }
@@ -972,7 +984,9 @@ fn eval_expr(
                 }
             }
 
-            Ok(value::new_object(vals))
+            let mutability = new_mutability_from_is_mutable(*is_mutable);
+
+            Ok(value::new_object(vals, mutability))
         },
 
         Expr::UnaryOp{op, expr} => {
@@ -1188,7 +1202,7 @@ fn eval_expr(
                     props.insert("stdout".to_string(), value::new_str(output.stdout));
                     props.insert("stderr".to_string(), value::new_str(output.stderr));
 
-                    Ok(value::new_object(props))
+                    Ok(value::new_object(props, Mutability::Immutable))
                 },
                 Err(e) => {
                     return Err(format!("process failed: {:?}", e));
@@ -1502,4 +1516,12 @@ fn interpolate_str(scopes: &mut ScopeStack, s: Vec<u8>) -> Result<Str, String> {
     }
 
     Ok(interpolated_str)
+}
+
+fn new_mutability_from_is_mutable(is_mutable: bool) -> Mutability {
+    if is_mutable {
+        Mutability::Mutable
+    } else {
+        Mutability::Immutable
+    }
 }

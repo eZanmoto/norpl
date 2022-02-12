@@ -1,0 +1,31 @@
+#
+# Demonstrate preventing "monkey-patching" on immutable global objects.
+#
+fn $new_global_object() {
+    $xs := ${'a': 1, 'b': 2, 'c': 3};
+
+    $xs['b'] = 5;
+
+    return {$xs..};
+}
+
+fn $f1($ys) {
+    $print('f1 ----');
+    $ys = ${$ys..};
+    $ys['b'] = 10;
+    $ys.c = 20;
+    $print($ys);
+    $print('f1 ----');
+}
+
+fn $f2($ys) {
+    $print('f2 ----');
+    $print($ys);
+    $print('f2 ----');
+}
+
+$ys := $new_global_object();
+
+$f1($ys);
+
+$f2($ys);

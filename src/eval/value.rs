@@ -43,7 +43,7 @@ pub enum Value {
     Int(i64),
     Str(Str),
     List{list: List, is_mutable: bool},
-    Object(Object),
+    Object{props: Object, is_mutable: bool},
 
     BuiltInFunc{f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>},
     Func{args: Vec<Expr>, stmts: Block, closure: ScopeStack},
@@ -166,8 +166,10 @@ pub fn new_list(list: List, mutability: Mutability) -> ValRefWithSource {
     new_val_ref(Value::List{list, is_mutable})
 }
 
-pub fn new_object(props: Object) -> ValRefWithSource {
-    new_val_ref(Value::Object(props))
+pub fn new_object(props: Object, mutability: Mutability) -> ValRefWithSource {
+    let is_mutable = mutability == Mutability::Mutable;
+
+    new_val_ref(Value::Object{props, is_mutable})
 }
 
 pub fn new_built_in_func(f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>)

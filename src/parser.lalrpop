@@ -150,7 +150,8 @@ pub Expr_: Expr = {
     "[" <xs:ExprList> "]" => Expr::List{xs, is_mutable: false},
     "$[" <xs:ExprList> "]" => Expr::List{xs, is_mutable: true},
 
-    "{" <props:PropList> "}" => Expr::Object{props},
+    "{" <props:PropList> "}" => Expr::Object{props, is_mutable: false},
+    "${" <props:PropList> "}" => Expr::Object{props, is_mutable: true},
 
     "(" <expr:Expr> ")" => expr,
 
@@ -285,6 +286,7 @@ extern {
         ":(" => Token::ColonParenOpen,
         "->" => Token::DashGreaterThan,
         "/=" => Token::DivEquals,
+        "${" => Token::DollarBrace,
         "$[" => Token::DollarBracket,
         ".." => Token::DotDot,
         "==" => Token::EqualsEquals,

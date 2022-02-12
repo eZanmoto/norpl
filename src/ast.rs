@@ -62,7 +62,7 @@ pub enum Expr {
     CatchAsBool{expr: Box<Expr>},
     CatchAsError{expr: Box<Expr>},
 
-    Object{props: Vec<PropItem>},
+    Object{props: Vec<PropItem>, is_mutable: bool},
 
     Func{args: Vec<Expr>, stmts: Block},
     Call{expr: Box<Expr>, args: Vec<Expr>},

@@ -48,29 +48,35 @@ fn main() {
     let std = HashMap::<_, _>::from_iter(IntoIter::new([
         (
             "proc".to_string(),
-            value::new_object(HashMap::<_, _>::from_iter(IntoIter::new([
-                (
-                    "env".to_string(),
-                    value::new_object(HashMap::<_, _>::from_iter(
-                        env::vars()
-                            .map(|(k, v)| (k, value::new_str_from_string(v))),
-                    )),
-                ),
-
-                (
-                    "args".to_string(),
-                    value::new_list(
-                        vec![
-                            value::new_str_from_string("--dry-run".to_string()),
-                            value::new_str_from_string("--mirror".to_string()),
-                            value::new_str_from_string("abc".to_string()),
-                            value::new_str_from_string("--mirror".to_string()),
-                            value::new_str_from_string("Aliyun".to_string()),
-                        ],
-                        Mutability::Immutable,
+            value::new_object(
+                HashMap::<_, _>::from_iter(IntoIter::new([
+                    (
+                        "env".to_string(),
+                        value::new_object(
+                            HashMap::<_, _>::from_iter(
+                                env::vars()
+                                    .map(|(k, v)| (k, value::new_str_from_string(v))),
+                            ),
+                            Mutability::Immutable,
+                        ),
                     ),
-                ),
-            ]))),
+
+                    (
+                        "args".to_string(),
+                        value::new_list(
+                            vec![
+                                value::new_str_from_string("--dry-run".to_string()),
+                                value::new_str_from_string("--mirror".to_string()),
+                                value::new_str_from_string("abc".to_string()),
+                                value::new_str_from_string("--mirror".to_string()),
+                                value::new_str_from_string("Aliyun".to_string()),
+                            ],
+                            Mutability::Immutable,
+                        ),
+                    ),
+                ])),
+                Mutability::Immutable,
+            ),
         ),
     ]));
 

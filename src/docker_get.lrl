@@ -24,7 +24,7 @@ fn $env_or($name, $default) {
 }
 
 fn $parse_args() {
-    $args := {mirror: ''};
+    $args := ${mirror: ''};
 
     $i := 0;
     while $i < $proc.args->len() {
@@ -43,7 +43,7 @@ fn $parse_args() {
         $i += 1;
     }
 
-    return $args;
+    return {$args..};
 }
 
 fn $download_url_from_mirror($mirror, $default) {
