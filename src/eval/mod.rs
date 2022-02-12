@@ -307,8 +307,8 @@ fn bind_(
 
         Expr::Index{expr, location} => {
             match_eval_expr!((scopes, builtins, &expr) {
-                Value::List{list, mutability} => {
-                    if *mutability == Mutability::Immutable {
+                Value::List{list, is_mutable} => {
+                    if !*is_mutable {
                         return Err(format!("cannot assign to an index of an immutable list"));
                     }
 
@@ -1330,12 +1330,12 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
             }
         },
         (
-            Value::List{list: lhs, mutability: lhs_mut},
-            Value::List{list: rhs, mutability: rhs_mut},
+            Value::List{list: lhs, is_mutable: lhs_is_mut},
+            Value::List{list: rhs, is_mutable: rhs_is_mut},
         ) => {
             match op {
                 BinaryOp::Sum => {
-                    if lhs_mut != rhs_mut {
+                    if lhs_is_mut != rhs_is_mut {
                         return Err(format!("cannot concatenate mutable and immutable lists"));
                     }
 
@@ -1346,7 +1346,7 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                     for v in rhs {
                         list.push(v.clone());
                     }
-                    Ok(Value::List{list, mutability: lhs_mut.clone()})
+                    Ok(Value::List{list, is_mutable: *lhs_is_mut})
                 },
 
                 _ => Err(format!("unsupported operation for lists ({:?})", op))
