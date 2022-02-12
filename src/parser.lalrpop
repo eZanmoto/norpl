@@ -39,17 +39,6 @@ pub Stmt: Stmt = {
     "return" <expr:Expr> ";" => Stmt::Return{expr},
 }
 
-pub ArgNames: Vec<String> = {
-    () => vec![],
-    <head:Ident> => vec![head],
-    <head:Ident> "," <tail:ArgNames> => {
-        let mut list = tail.clone();
-        list.insert(0, head);
-
-        list
-    },
-}
-
 pub Block: Block = {
     "{" <stmts:Stmt*> "}" => stmts,
 }
@@ -164,15 +153,16 @@ pub ExprPrecedence5: Expr = {
     "fn" "(" <args:ParamList> ")" <stmts:Block> => Expr::Func{args, stmts},
 }
 
-pub ParamList: Vec<Expr> = {
-    () => vec![],
-    <head:Expr> => vec![head],
-    <head:Expr> "," <tail:ParamList> => {
-        let mut list = tail.clone();
-        list.insert(0, head);
+pub ParamList: Vec<Expr> = CommaSepList<Expr>;
 
-        list
-    },
+CommaSepList<T>: Vec<T> = {
+    <mut values:(<T> ",")*> <last:T?> => {
+        if let Some(v) = last {
+            values.push(v);
+        }
+
+        values
+    }
 }
 
 pub ExprList: Vec<ListItem> = {
@@ -195,16 +185,7 @@ pub ExprList: Vec<ListItem> = {
     },
 }
 
-pub PropList: Vec<PropItem> = {
-    () => vec![],
-    <head:PropItem> => vec![head],
-    <head:PropItem> "," <tail:PropList> => {
-        let mut list = tail.clone();
-        list.insert(0, head);
-
-        list
-    },
-}
+pub PropList: Vec<PropItem> = CommaSepList<PropItem>;
 
 pub PropItem: PropItem = {
     <name:Expr> ":" <value:Expr> =>
