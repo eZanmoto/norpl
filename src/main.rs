@@ -20,6 +20,7 @@ use builtins::fns;
 use builtins::prototypes;
 use eval::value;
 use eval::builtins::Builtins;
+use eval::value::Mutability;
 use eval::value::ScopeStack;
 use lexer::Lexer;
 use parser::ProgParser;
@@ -58,13 +59,16 @@ fn main() {
 
                 (
                     "args".to_string(),
-                    value::new_list(vec![
-                        value::new_str_from_string("--dry-run".to_string()),
-                        value::new_str_from_string("--mirror".to_string()),
-                        value::new_str_from_string("abc".to_string()),
-                        value::new_str_from_string("--mirror".to_string()),
-                        value::new_str_from_string("Aliyun".to_string()),
-                    ]),
+                    value::new_list(
+                        vec![
+                            value::new_str_from_string("--dry-run".to_string()),
+                            value::new_str_from_string("--mirror".to_string()),
+                            value::new_str_from_string("abc".to_string()),
+                            value::new_str_from_string("--mirror".to_string()),
+                            value::new_str_from_string("Aliyun".to_string()),
+                        ],
+                        Mutability::Immutable,
+                    ),
                 ),
             ]))),
         ),

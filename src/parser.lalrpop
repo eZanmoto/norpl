@@ -147,7 +147,8 @@ pub Expr_: Expr = {
     <s:StrLiteral> => Expr::Str{s},
     <s:InterpolatedStrLiteral> => Expr::InterpolatedStr{s},
 
-    "[" <xs:ExprList> "]" => Expr::List{xs},
+    "[" <xs:ExprList> "]" => Expr::List{xs, is_mutable: false},
+    "$[" <xs:ExprList> "]" => Expr::List{xs, is_mutable: true},
 
     "{" <props:PropList> "}" => Expr::Object{props},
 
@@ -284,6 +285,7 @@ extern {
         ":(" => Token::ColonParenOpen,
         "->" => Token::DashGreaterThan,
         "/=" => Token::DivEquals,
+        "$[" => Token::DollarBracket,
         ".." => Token::DotDot,
         "==" => Token::EqualsEquals,
         ">" => Token::GreaterThan,

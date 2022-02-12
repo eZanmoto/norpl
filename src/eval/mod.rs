@@ -13,6 +13,7 @@ use ast::*;
 use self::builtins::Builtins;
 use self::value::DeclType;
 use self::value::List;
+use self::value::Mutability;
 use self::value::ScopeStack;
 use self::value::Str;
 use self::value::ValRefWithSource;
@@ -185,7 +186,7 @@ fn eval_stmt(
             let pairs = value_to_pairs(&(*iter_.lock().unwrap()).v)?;
 
             for (key, value) in pairs {
-                let entry = value::new_list(vec![key, value]);
+                let entry = value::new_list(vec![key, value], Mutability::Immutable);
 
                 let new_bindings = vec![(lhs.clone(), entry)];
 
@@ -232,8 +233,8 @@ fn value_to_pairs(v: &Value)
                     })
                     .collect(),
 
-            Value::List(xs) =>
-                xs
+            Value::List{list, ..} =>
+                list
                     .iter()
                     .enumerate()
                     .map(|(i, value)| {
@@ -284,11 +285,19 @@ fn bind_(
             bind_name_(scopes, already_declared, name, rhs, bt)
         }
 
-        Expr::List{xs} => {
+        Expr::List{xs: lhs, is_mutable: lhs_is_mutable} => {
             match &(*rhs.lock().unwrap()).v {
-                Value::List(ys) => {
+                Value::List{list: rhs, ..} => {
                     // TODO Investigate removing the call to `to_vec()`.
-                    bind_list(scopes, builtins, already_declared, xs, ys.to_vec(), bt)
+                    bind_list(
+                        scopes,
+                        builtins,
+                        already_declared,
+                        lhs,
+                        lhs_is_mutable,
+                        rhs.to_vec(),
+                        bt,
+                    )
                 },
                 _ => {
                     Err(format!("can't destructure non-list into list"))
@@ -298,11 +307,15 @@ fn bind_(
 
         Expr::Index{expr, location} => {
             match_eval_expr!((scopes, builtins, &expr) {
-                Value::List(xs) => {
+                Value::List{list, mutability} => {
+                    if *mutability == Mutability::Immutable {
+                        return Err(format!("cannot assign to an index of an immutable list"));
+                    }
+
                     let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
 
                     // TODO Handle out-of-bounds assignment.
-                    xs[n as usize] = rhs;
+                    list[n as usize] = rhs;
                 },
 
                 Value::Object(props) => {
@@ -422,6 +435,7 @@ fn bind_list(
     builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<ListItem>,
+    lhs_is_mutable: bool,
     rhs: List,
     bt: BindType,
 )
@@ -436,14 +450,19 @@ fn bind_list(
 
     let ListItem{is_unspread, ..} = lhs[lhs.len()-1];
 
-    let bind_list_f =
-        if is_unspread {
-            bind_unspread_list
-        } else {
-            bind_exact_list
-        };
-
-    bind_list_f(scopes, builtins, &mut already_declared, lhs, rhs, bt)
+    if is_unspread {
+        bind_unspread_list(
+            scopes,
+            builtins,
+            &mut already_declared,
+            lhs,
+            lhs_is_mutable,
+            rhs,
+            bt,
+        )
+    } else {
+        bind_exact_list(scopes, builtins, &mut already_declared, lhs, rhs, bt)
+    }
 }
 
 fn bind_unspread_list(
@@ -451,6 +470,7 @@ fn bind_unspread_list(
     builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     mut lhs: Vec<ListItem>,
+    lhs_is_mutable: bool,
     mut rhs: List,
     bt: BindType,
 )
@@ -478,7 +498,14 @@ fn bind_unspread_list(
 
     match unspread_expr {
         Expr::Var{name} => {
-            bind_name_(scopes, &mut already_declared, name, value::new_list(rhs_rest), bt)
+            let mutability =
+                if lhs_is_mutable {
+                    Mutability::Mutable
+                } else {
+                    Mutability::Immutable
+                };
+            let list = value::new_list(rhs_rest, mutability);
+            bind_name_(scopes, &mut already_declared, name, list, bt)
         }
         _ => {
             Err(format!("can only unspread to a variable"))
@@ -652,7 +679,7 @@ fn eval_expr(
             Ok(value::new_str(interpolated_str))
         },
 
-        Expr::List{xs} => {
+        Expr::List{xs, is_mutable} => {
             let mut vals = vec![];
 
             for item in xs {
@@ -664,8 +691,8 @@ fn eval_expr(
                 }
 
                 match &(*value.lock().unwrap()).v {
-                    Value::List(xs) => {
-                        for x in xs {
+                    Value::List{list, ..} => {
+                        for x in list {
                             vals.push(x.clone());
                         }
                     },
@@ -675,7 +702,14 @@ fn eval_expr(
                 };
             }
 
-            Ok(value::new_list(vals))
+            let mutability =
+                if *is_mutable {
+                    Mutability::Mutable
+                } else {
+                    Mutability::Immutable
+                };
+
+            Ok(value::new_list(vals, mutability))
         },
 
         Expr::Range{start, end} => {
@@ -686,7 +720,7 @@ fn eval_expr(
                     .map(|n| value::new_int(n))
                     .collect();
 
-            Ok(value::new_list(range))
+            Ok(value::new_list(range, Mutability::Immutable))
         },
 
         Expr::Index{expr, location} => {
@@ -700,9 +734,9 @@ fn eval_expr(
                     };
                 },
 
-                Value::List(xs) => {
+                Value::List{list, ..} => {
                     let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
-                    match xs.get(n as usize) {
+                    match list.get(n as usize) {
                         Some(v) => return Ok(v.clone()),
                         None => return Err(format!("index out of bounds")),
                     };
@@ -766,28 +800,28 @@ fn eval_expr(
                     return get_str_index_range(s, None, None);
                 },
 
-                Value::List(xs) => {
+                Value::List{list, ..} => {
                     if let Some(start) = maybe_start {
                         let start = eval_expr_to_i64(scopes, builtins, &start, "index")?;
 
                         if let Some(end) = maybe_end {
                             let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
                             return get_list_index_range(
-                                xs,
+                                list,
                                 Some(start as usize),
                                 Some(end as usize),
                             );
                         }
 
-                        return get_list_index_range(xs, Some(start as usize), None);
+                        return get_list_index_range(list, Some(start as usize), None);
                     }
 
                     if let Some(end) = maybe_end {
                         let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
 
-                        return get_list_index_range(xs, None, Some(end as usize));
+                        return get_list_index_range(list, None, Some(end as usize));
                     }
-                    return get_list_index_range(xs, None, None);
+                    return get_list_index_range(list, None, None);
                 },
 
                 _ => return Err(format!("can only index range lists and strings")),
@@ -869,7 +903,7 @@ fn eval_expr(
                     Err(_) => (value::new_null(), value::new_bool(false)),
                 };
 
-            Ok(value::new_list(vec![maybe_value, maybe_err]))
+            Ok(value::new_list(vec![maybe_value, maybe_err], Mutability::Immutable))
         },
 
         Expr::CatchAsError{expr} => {
@@ -880,7 +914,7 @@ fn eval_expr(
                     Err(e) => (value::new_null(), value::new_str_from_string(e.to_string())),
                 };
 
-            Ok(value::new_list(vec![maybe_value, maybe_err]))
+            Ok(value::new_list(vec![maybe_value, maybe_err], Mutability::Immutable))
         },
 
         Expr::Object{props} => {
@@ -1203,17 +1237,17 @@ fn get_str_index_range(
 }
 
 fn get_list_index_range(
-    xs: &List,
+    list: &List,
     mut maybe_start: Option<usize>,
     mut maybe_end: Option<usize>,
 )
     -> Result<ValRefWithSource,String>
 {
     let start = maybe_start.get_or_insert(0);
-    let end = maybe_end.get_or_insert(xs.len());
+    let end = maybe_end.get_or_insert(list.len());
 
-    if let Some(vs) = xs.get(*start .. *end) {
-        return Ok(value::new_list(vs.to_vec()));
+    if let Some(vs) = list.get(*start .. *end) {
+        return Ok(value::new_list(vs.to_vec(), Mutability::Immutable));
     }
 
     Err(format!("index out of bounds"))
@@ -1295,17 +1329,24 @@ fn apply_binary_operation(op: &BinaryOp, lhs: &Value, rhs: &Value)
                 },
             }
         },
-        (Value::List(lhs), Value::List(rhs)) => {
+        (
+            Value::List{list: lhs, mutability: lhs_mut},
+            Value::List{list: rhs, mutability: rhs_mut},
+        ) => {
             match op {
                 BinaryOp::Sum => {
-                    let mut xs = vec![];
+                    if lhs_mut != rhs_mut {
+                        return Err(format!("cannot concatenate mutable and immutable lists"));
+                    }
+
+                    let mut list = vec![];
                     for v in lhs {
-                        xs.push(v.clone());
+                        list.push(v.clone());
                     }
                     for v in rhs {
-                        xs.push(v.clone());
+                        list.push(v.clone());
                     }
-                    Ok(Value::List(xs))
+                    Ok(Value::List{list, mutability: lhs_mut.clone()})
                 },
 
                 _ => Err(format!("unsupported operation for lists ({:?})", op))

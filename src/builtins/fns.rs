@@ -66,9 +66,9 @@ fn render(v: ValRefWithSource) -> Result<String, String> {
         Value::Func{..} => {
             s += "<user-defined function>";
         },
-        Value::List(xs) => {
+        Value::List{list, ..} => {
             s += "[\n";
-            for x in xs {
+            for x in list {
                 s += &format!("    {},\n", render(x.clone())?);
             }
             s += "]";
@@ -93,9 +93,9 @@ fn render(v: ValRefWithSource) -> Result<String, String> {
 pub fn len_(_this: Option<ValRefWithSource>, vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle out-of-bounds access.
     match &(*vs[0].lock().unwrap()).v {
-        Value::List(xs) => {
+        Value::List{list, ..} => {
             // TODO Investigate casting `usize` to `i64`.
-            Ok(value::new_int(xs.len() as i64))
+            Ok(value::new_int(list.len() as i64))
         },
         _ => {
             Err(format!("can only call `len` on lists"))

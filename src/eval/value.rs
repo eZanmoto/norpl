@@ -42,13 +42,19 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Str(Str),
-    List(List),
+    List{list: List, mutability: Mutability},
     Object(Object),
 
     BuiltInFunc{f: fn(Option<ValRefWithSource>, List) -> Result<ValRefWithSource, String>},
     Func{args: Vec<Expr>, stmts: Block, closure: ScopeStack},
 
     Command{prog: String, args: Vec<String>},
+}
+
+#[derive(Clone,Debug,PartialEq)]
+pub enum Mutability {
+    Mutable,
+    Immutable,
 }
 
 #[derive(Clone,Debug)]
@@ -154,8 +160,8 @@ pub fn new_str_from_string(s: String) -> ValRefWithSource {
     new_val_ref(Value::Str(s.into_bytes()))
 }
 
-pub fn new_list(xs: List) -> ValRefWithSource {
-    new_val_ref(Value::List(xs))
+pub fn new_list(list: List, mutability: Mutability) -> ValRefWithSource {
+    new_val_ref(Value::List{list, mutability})
 }
 
 pub fn new_object(props: Object) -> ValRefWithSource {

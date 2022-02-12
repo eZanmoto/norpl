@@ -1,0 +1,49 @@
+#
+# Demonstrate preventing "monkey-patching" on immutable global lists.
+#
+fn $new_global_list() {
+    $xs := $[1, 2, 3];
+
+    $xs[1] = 5;
+
+    return [$xs..];
+}
+
+fn $f1($ys) {
+    $print('f1 ----');
+    $ys = $[$ys..];
+    $ys[2] = 10;
+    $print($ys);
+    $print('f1 ----');
+}
+
+fn $f2($ys) {
+    $print('f2 ----');
+    $print($ys);
+    $print('f2 ----');
+}
+
+$ys := $new_global_list();
+
+$f1($ys);
+
+$f2($ys);
+
+#
+# Demonstrate concatenating with like-mutable lists, and inheriting the
+# mutability property.
+#
+$xs := $[1, 2, 3] + $[4, 5, 6];
+
+$xs[2] = 10;
+
+$print($xs);
+
+#
+# Demonstrate the immutability of iterator pairs.
+#
+for $pair in {'a': 1, 'b': 2, 'c': 3} {
+    $print($pair);
+    $pair[0] = 'd';
+    $print($pair);
+}

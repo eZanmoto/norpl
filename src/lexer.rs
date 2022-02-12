@@ -52,6 +52,7 @@ pub enum Token {
     ColonParenOpen,
     DashGreaterThan,
     DivEquals,
+    DollarBracket,
     DotDot,
     EqualsEquals,
     GreaterThanEquals,
@@ -225,6 +226,14 @@ impl<'input> Lexer<'input> {
         Ok((start_loc, Token::DollarColonEquals, end_loc))
     }
 
+    fn next_dollar_bracket(&mut self, start_loc: Location) -> Span {
+        // Match `[`.
+        self.next_char();
+        let end_loc = self.loc();
+
+        (start_loc, Token::DollarBracket, end_loc)
+    }
+
     fn next_ident(&mut self, start: usize, start_loc: Location)
         -> Result<Span, LexError>
     {
@@ -372,6 +381,8 @@ impl<'input> Iterator for Lexer<'input> {
                     Ok(self.next_quoted_str_literal(|s| Token::InterpolatedStrLiteral(s)))
                 } else if next_c == ':' {
                     self.next_dollar_colon_equals(start_loc)
+                } else if next_c == '[' {
+                    Ok(self.next_dollar_bracket(start_loc))
                 } else {
                     self.next_ident(start, start_loc)
                 }

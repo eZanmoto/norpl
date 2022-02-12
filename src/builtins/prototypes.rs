@@ -200,9 +200,9 @@ fn str_trim_right_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWi
 fn list_len_(this: Option<ValRefWithSource>, _vs: List) -> Result<ValRefWithSource, String> {
     // TODO Handle `unwrap` on a "none" `this`.
     match &(*this.unwrap().lock().unwrap()).v {
-        Value::List(xs) => {
+        Value::List{list, ..} => {
             // TODO Investigate casting `usize` to `i64`.
-            Ok(value::new_int(xs.len() as i64))
+            Ok(value::new_int(list.len() as i64))
         },
         _ => {
             // TODO Consider whether to use a `panic!` here.

@@ -53,7 +53,7 @@ pub enum Expr {
     UnaryOp{op: UnaryOp, expr: Box<Expr>},
     BinaryOp{op: BinaryOp, lhs: Box<Expr>, rhs: Box<Expr>},
 
-    List{xs: Vec<ListItem>},
+    List{xs: Vec<ListItem>, is_mutable: bool},
     Range{start: Box<Expr>, end: Box<Expr>},
     Index{expr: Box<Expr>, location: Box<Expr>},
     IndexRange{expr: Box<Expr>, start: Option<Box<Expr>>, end: Option<Box<Expr>>},
