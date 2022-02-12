@@ -225,7 +225,9 @@ impl<'input> Lexer<'input> {
         Ok((start_loc, Token::DollarColonEquals, end_loc))
     }
 
-    fn next_ident(&mut self, start: usize, start_loc: Location) -> Span {
+    fn next_ident(&mut self, start: usize, start_loc: Location)
+        -> Result<Span, LexError>
+    {
         while let Some(c) = self.peek_char() {
             if !c.is_ascii_alphanumeric() && c != '_' {
                 break;
@@ -236,9 +238,21 @@ impl<'input> Lexer<'input> {
         let end_loc = self.loc();
 
         let id = &self.raw_chars[start + 1..end];
+
+        if id.len() == 0 {
+            let prefix = "$".to_string();
+            let err =
+                if let Some(c) = self.peek_char() {
+                    LexError::UnexpectedCharAfterPrefix(end_loc, prefix, c)
+                } else {
+                    LexError::UnexpectedEofAfterPrefix(end_loc, prefix)
+                };
+            return Err(err);
+        }
+
         let t = Token::Ident(id.to_string());
 
-        (start_loc, t, end_loc)
+        Ok((start_loc, t, end_loc))
     }
 
     fn next_quoted_str_literal<F>(&mut self, new_str_token: F) -> Span
@@ -359,7 +373,7 @@ impl<'input> Iterator for Lexer<'input> {
                 } else if next_c == ':' {
                     self.next_dollar_colon_equals(start_loc)
                 } else {
-                    Ok(self.next_ident(start, start_loc))
+                    self.next_ident(start, start_loc)
                 }
             } else if c == '\'' {
                 Ok(self.next_quoted_str_literal(|s| Token::QuotedStrLiteral(s)))
