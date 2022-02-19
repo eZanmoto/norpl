@@ -43,8 +43,9 @@ pub fn eval_prog(
 {
     let ret_val = eval_stmts(scopes, global_bindings, builtins, stmts)?;
 
-    if let Some(_) = ret_val {
-        return Err(format!("`return` outside function"));
+    match ret_val {
+        Escape::Return(_) => return Err(format!("`return` outside function")),
+        Escape::None => {},
     }
 
     Ok(())
@@ -57,7 +58,7 @@ pub fn eval_stmts_in_new_scope(
     builtins: &Builtins,
     stmts: &Block,
 )
-    -> Result<Option<ValRefWithSource>,String>
+    -> Result<Escape,String>
 {
     eval_stmts(outer_scopes, vec![], builtins, stmts)
 }
@@ -72,7 +73,7 @@ pub fn eval_stmts(
     builtins: &Builtins,
     stmts: &Block,
 )
-    -> Result<Option<ValRefWithSource>,String>
+    -> Result<Escape,String>
 {
     let mut inner_scopes = scopes.new_from_push(HashMap::new());
 
@@ -82,12 +83,18 @@ pub fn eval_stmts(
 
     for stmt in stmts {
         let v = eval_stmt(&mut inner_scopes, builtins, &stmt)?;
-        if let Some(_) = v {
-            return Ok(v);
+        match v {
+            Escape::None => {},
+            _ => return Ok(v),
         }
     }
 
-    Ok(None)
+    Ok(Escape::None)
+}
+
+pub enum Escape {
+    None,
+    Return(ValRefWithSource),
 }
 
 // `eval_stmt` returns `Some(v)` if a `return` value is evaluated, otherwise it
@@ -97,7 +104,7 @@ fn eval_stmt(
     builtins: &Builtins,
     stmt: &Stmt,
 )
-    -> Result<Option<ValRefWithSource>,String>
+    -> Result<Escape,String>
 {
     match stmt {
         Stmt::Expr{expr} => {
@@ -207,13 +214,13 @@ fn eval_stmt(
         Stmt::Return{expr} => {
             let v = eval_expr(scopes, builtins, expr)?;
 
-            return Ok(Some(v));
+            return Ok(Escape::Return(v));
         },
 
         // _ => return Err(format!("unhandled statement: {:?}", stmt)),
     }
 
-    Ok(None)
+    Ok(Escape::None)
 }
 
 // `value_to_pairs` returns the "index, value" pairs in `v`, if `v` represents
@@ -1102,8 +1109,8 @@ fn eval_expr(
                         )?;
 
                         match ret_val {
-                            Some(v) => v,
-                            None => value::new_null(),
+                            Escape::Return(v) => v,
+                            Escape::None => value::new_null(),
                         }
                     },
                 };
