@@ -21,6 +21,8 @@ pub enum Stmt {
     While{cond: Expr, stmts: Block},
     For{lhs: Expr, iter: Expr, stmts: Block},
 
+    Break,
+
     Func{name: String, args: Vec<Expr>, stmts: Block},
     Return{expr: Expr},
 

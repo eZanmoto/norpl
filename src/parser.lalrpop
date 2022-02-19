@@ -35,6 +35,8 @@ pub Stmt: Stmt = {
     "while" <cond:Expr> <stmts:Block> => Stmt::While{cond, stmts},
     "for" <lhs:Expr> "in" <iter:Expr> <stmts:Block> => Stmt::For{lhs, iter, stmts},
 
+    "break" ";" => Stmt::Break,
+
     "fn" <name:Ident> "(" <args:ParamList> ")" <stmts:Block> => Stmt::Func{name, args, stmts},
     "return" <expr:Expr> ";" => Stmt::Return{expr},
 }
@@ -234,6 +236,7 @@ extern {
         "quoted_str_literal" => Token::QuotedStrLiteral(<String>),
         "unquoted_str_literal" => Token::UnquotedStrLiteral(<String>),
 
+        "break" => Token::Break,
         "else" => Token::Else,
         "false" => Token::False,
         "fn" => Token::Fn,

@@ -12,6 +12,7 @@ pub enum Token {
     QuotedStrLiteral(String),
     UnquotedStrLiteral(String),
 
+    Break,
     Else,
     False,
     Fn,
@@ -167,7 +168,9 @@ impl<'input> Lexer<'input> {
 
         let t =
             match &self.raw_chars[start..end] {
+                "break" => Token::Break,
                 "else" => Token::Else,
+                "false" => Token::False,
                 "fn" => Token::Fn,
                 "for" => Token::For,
                 "if" => Token::If,
@@ -175,9 +178,8 @@ impl<'input> Lexer<'input> {
                 "in" => Token::In,
                 "null" => Token::Null,
                 "return" => Token::Return,
-                "while" => Token::While,
                 "true" => Token::True,
-                "false" => Token::False,
+                "while" => Token::While,
 
                 s => Token::UnquotedStrLiteral(s.to_string()),
             };
