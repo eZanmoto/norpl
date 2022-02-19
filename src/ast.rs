@@ -22,6 +22,7 @@ pub enum Stmt {
     For{lhs: Expr, iter: Expr, stmts: Block},
 
     Break,
+    Continue,
 
     Func{name: String, args: Vec<Expr>, stmts: Block},
     Return{expr: Expr},

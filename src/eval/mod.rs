@@ -46,6 +46,7 @@ pub fn eval_prog(
     match ret_val {
         Escape::Return(_) => return Err(format!("`return` outside function")),
         Escape::Break => return Err(format!("`break` outside loop")),
+        Escape::Continue => return Err(format!("`continue` outside loop")),
         Escape::None => {},
     }
 
@@ -97,6 +98,7 @@ pub enum Escape {
     None,
     Return(ValRefWithSource),
     Break,
+    Continue,
 }
 
 // `eval_stmt` returns `Some(v)` if a `return` value is evaluated, otherwise it
@@ -189,6 +191,7 @@ fn eval_stmt(
                 match escape {
                     Escape::None => {},
                     Escape::Break => break,
+                    Escape::Continue => continue,
                     Escape::Return(_) => return Ok(escape),
                 }
             }
@@ -208,6 +211,7 @@ fn eval_stmt(
                 match escape {
                     Escape::None => {},
                     Escape::Break => break,
+                    Escape::Continue => continue,
                     Escape::Return(_) => return Ok(escape),
                 }
             }
@@ -215,6 +219,10 @@ fn eval_stmt(
 
         Stmt::Break => {
             return Ok(Escape::Break);
+        },
+
+        Stmt::Continue => {
+            return Ok(Escape::Continue);
         },
 
         Stmt::Func{name, args, stmts} => {
@@ -1125,6 +1133,7 @@ fn eval_expr(
                         match ret_val {
                             Escape::Return(v) => v,
                             Escape::Break => return Err(format!("`break` outside loop")),
+                            Escape::Continue => return Err(format!("`continue` outside loop")),
                             Escape::None => value::new_null(),
                         }
                     },
