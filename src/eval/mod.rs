@@ -183,7 +183,11 @@ fn eval_stmt(
                     break;
                 }
 
-                eval_stmts_in_new_scope(scopes, builtins, &stmts)?;
+                let escape = eval_stmts_in_new_scope(scopes, builtins, &stmts)?;
+                match escape {
+                    Escape::None => {},
+                    Escape::Return(_) => return Ok(escape),
+                }
             }
         },
 
@@ -197,7 +201,11 @@ fn eval_stmt(
 
                 let new_bindings = vec![(lhs.clone(), entry)];
 
-                eval_stmts(scopes, new_bindings, builtins, &stmts)?;
+                let escape = eval_stmts(scopes, new_bindings, builtins, &stmts)?;
+                match escape {
+                    Escape::None => {},
+                    Escape::Return(_) => return Ok(escape),
+                }
             }
         },
 
