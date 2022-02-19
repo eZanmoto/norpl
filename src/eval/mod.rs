@@ -224,8 +224,6 @@ fn eval_stmt(
 
             return Ok(Escape::Return(v));
         },
-
-        // _ => return Err(format!("unhandled statement: {:?}", stmt)),
     }
 
     Ok(Escape::None)
