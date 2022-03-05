@@ -18,8 +18,9 @@ mod lexer;
 use ast::Expr;
 use builtins::fns;
 use builtins::prototypes;
-use eval::value;
 use eval::builtins::Builtins;
+use eval::EvaluationContext;
+use eval::value;
 use eval::value::Mutability;
 use eval::value::ScopeStack;
 use lexer::Lexer;
@@ -86,9 +87,9 @@ fn main() {
     let lexer = Lexer::new(&test);
     let ast = ProgParser::new().parse(lexer).unwrap();
     let result = eval::eval_prog(
+        &EvaluationContext{builtins: Builtins{std, prototypes}},
         &mut scopes,
         global_bindings,
-        &Builtins{std, prototypes},
         &ast,
     );
 

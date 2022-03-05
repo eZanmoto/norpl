@@ -22,10 +22,10 @@ use self::value::ValWithSource;
 
 macro_rules! match_eval_expr {
     (
-        ( $scopes:ident, $builtins:ident, $expr:expr )
+        ( $context:ident, $scopes:ident, $expr:expr )
         { $( $key:pat => $value:expr , )* }
     ) => {{
-        let value = eval_expr($scopes, $builtins, $expr)?;
+        let value = eval_expr($context, $scopes, $expr)?;
         let unlocked_value = &mut (*value.lock().unwrap()).v;
         match unlocked_value {
             $( $key => $value , )*
@@ -34,14 +34,14 @@ macro_rules! match_eval_expr {
 }
 
 pub fn eval_prog(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
     global_bindings: Vec<(Expr, ValRefWithSource)>,
-    builtins: &Builtins,
     Prog::Body{stmts}: &Prog,
 )
     -> Result<(),String>
 {
-    let ret_val = eval_stmts(scopes, global_bindings, builtins, stmts)?;
+    let ret_val = eval_stmts(context, scopes, global_bindings, stmts)?;
 
     match ret_val {
         Escape::Return(_) => return Err(format!("`return` outside function")),
@@ -56,13 +56,13 @@ pub fn eval_prog(
 // See `eval_stmts` for more information on the values
 // `eval_stmts_in_new_scope` returns.
 pub fn eval_stmts_in_new_scope(
+    context: &EvaluationContext,
     outer_scopes: &mut ScopeStack,
-    builtins: &Builtins,
     stmts: &Block,
 )
     -> Result<Escape,String>
 {
-    eval_stmts(outer_scopes, vec![], builtins, stmts)
+    eval_stmts(context, outer_scopes, vec![], stmts)
 }
 
 // `eval_stmts` evaluates `stmts` in a new scope pushed onto `scopes`, with the
@@ -70,9 +70,9 @@ pub fn eval_stmts_in_new_scope(
 // of the statements is evaluates is a a `return` statement, otherwise it
 // returns `None`.
 pub fn eval_stmts(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
     new_bindings: Vec<(Expr, ValRefWithSource)>,
-    builtins: &Builtins,
     stmts: &Block,
 )
     -> Result<Escape,String>
@@ -80,11 +80,11 @@ pub fn eval_stmts(
     let mut inner_scopes = scopes.new_from_push(HashMap::new());
 
     for (lhs, rhs) in new_bindings {
-        bind(&mut inner_scopes, builtins, lhs.clone(), rhs, BindType::VarDeclaration)?;
+        bind(context, &mut inner_scopes, lhs.clone(), rhs, BindType::VarDeclaration)?;
     }
 
     for stmt in stmts {
-        let v = eval_stmt(&mut inner_scopes, builtins, &stmt)?;
+        let v = eval_stmt(context, &mut inner_scopes, &stmt)?;
         match v {
             Escape::None => {},
             _ => return Ok(v),
@@ -104,27 +104,27 @@ pub enum Escape {
 // `eval_stmt` returns `Some(v)` if a `return` value is evaluated, otherwise it
 // returns `None`.
 fn eval_stmt(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     stmt: &Stmt,
 )
     -> Result<Escape,String>
 {
     match stmt {
         Stmt::Expr{expr} => {
-            eval_expr(scopes, builtins, &expr)?;
+            eval_expr(context, scopes, &expr)?;
         },
 
         Stmt::Import{name} => {
             let pkg =
-                match builtins.std.get(name) {
+                match context.builtins.std.get(name) {
                     Some(v) => v,
                     None => return Err(format!("'{}' is not a standard package", name)),
                 };
 
             bind(
+                context,
                 scopes,
-                builtins,
                 Expr::Var{name: name.clone()},
                 pkg.clone(),
                 BindType::ConstDeclaration,
@@ -132,7 +132,7 @@ fn eval_stmt(
         },
 
         Stmt::Declare{lhs, rhs, dt} => {
-            let v = eval_expr(scopes, builtins, &rhs)?;
+            let v = eval_expr(context, scopes, &rhs)?;
 
             let bt =
                 match dt {
@@ -141,20 +141,20 @@ fn eval_stmt(
                 };
 
             // TODO Consider whether `clone()` can be avoided here.
-            bind(scopes, builtins, lhs.clone(), v, bt)?;
+            bind(context, scopes, lhs.clone(), v, bt)?;
         },
 
         Stmt::Assign{lhs, rhs} => {
-            let v = eval_expr(scopes, builtins, &rhs)?;
+            let v = eval_expr(context, scopes, &rhs)?;
 
             // TODO Consider whether `clone()` can be avoided here.
-            bind(scopes, builtins, lhs.clone(), v, BindType::Assignment)?;
+            bind(context, scopes, lhs.clone(), v, BindType::Assignment)?;
         },
 
         Stmt::OpAssign{lhs, op, rhs} => {
-            let lhs = eval_expr(scopes, builtins, &lhs)?;
+            let lhs = eval_expr(context, scopes, &lhs)?;
 
-            let rhs = eval_expr(scopes, builtins, &rhs)?;
+            let rhs = eval_expr(context, scopes, &rhs)?;
 
             let result = apply_binary_operation(
                 &op,
@@ -167,27 +167,27 @@ fn eval_stmt(
 
         Stmt::If{branches, else_stmts} => {
             for Branch{cond, stmts} in branches {
-                let b = eval_expr_to_bool(scopes, builtins, &cond, "condition")?;
+                let b = eval_expr_to_bool(context, scopes, &cond, "condition")?;
 
                 if b {
-                    return eval_stmts_in_new_scope(scopes, builtins, &stmts);
+                    return eval_stmts_in_new_scope(context, scopes, &stmts);
                 }
             }
 
             if let Some(stmts) = else_stmts {
-                return eval_stmts_in_new_scope(scopes, builtins, &stmts);
+                return eval_stmts_in_new_scope(context, scopes, &stmts);
             }
         },
 
         Stmt::While{cond, stmts} => {
             loop {
-                let b = eval_expr_to_bool(scopes, builtins, &cond, "condition")?;
+                let b = eval_expr_to_bool(context, scopes, &cond, "condition")?;
 
                 if !b {
                     break;
                 }
 
-                let escape = eval_stmts_in_new_scope(scopes, builtins, &stmts)?;
+                let escape = eval_stmts_in_new_scope(context, scopes, &stmts)?;
                 match escape {
                     Escape::None => {},
                     Escape::Break => break,
@@ -198,7 +198,7 @@ fn eval_stmt(
         },
 
         Stmt::For{lhs, iter, stmts} => {
-            let iter_ = eval_expr(scopes, builtins, &iter)?;
+            let iter_ = eval_expr(context, scopes, &iter)?;
 
             let pairs = value_to_pairs(&(*iter_.lock().unwrap()).v)?;
 
@@ -207,7 +207,7 @@ fn eval_stmt(
 
                 let new_bindings = vec![(lhs.clone(), entry)];
 
-                let escape = eval_stmts(scopes, new_bindings, builtins, &stmts)?;
+                let escape = eval_stmts(context, scopes, new_bindings, &stmts)?;
                 match escape {
                     Escape::None => {},
                     Escape::Break => break,
@@ -236,7 +236,7 @@ fn eval_stmt(
         },
 
         Stmt::Return{expr} => {
-            let v = eval_expr(scopes, builtins, expr)?;
+            let v = eval_expr(context, scopes, expr)?;
 
             return Ok(Escape::Return(v));
         },
@@ -288,20 +288,20 @@ fn value_to_pairs(v: &Value)
 }
 
 fn bind(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     lhs: Expr,
     rhs: ValRefWithSource,
     bt: BindType,
 )
     -> Result<(),String>
 {
-    bind_(scopes, builtins, &mut HashSet::new(), lhs, rhs, bt)
+    bind_(context, scopes, &mut HashSet::new(), lhs, rhs, bt)
 }
 
 fn bind_(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     already_declared: &mut HashSet<String>,
     lhs: Expr,
     rhs: ValRefWithSource,
@@ -319,8 +319,8 @@ fn bind_(
                 Value::List{list: rhs, ..} => {
                     // TODO Investigate removing the call to `to_vec()`.
                     bind_list(
+                        context,
                         scopes,
-                        builtins,
                         already_declared,
                         lhs,
                         lhs_is_mutable,
@@ -335,20 +335,20 @@ fn bind_(
         },
 
         Expr::Index{expr, location} => {
-            match_eval_expr!((scopes, builtins, &expr) {
+            match_eval_expr!((context, scopes, &expr) {
                 Value::List{list, is_mutable} => {
                     if !*is_mutable {
                         return Err(format!("cannot assign to an index of an immutable list"));
                     }
 
-                    let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
+                    let n = eval_expr_to_i64(context, scopes, &location, "index")?;
 
                     // TODO Handle out-of-bounds assignment.
                     list[n as usize] = rhs;
                 },
 
                 Value::Object{props, is_mutable} => {
-                    match_eval_expr!((scopes, builtins, &location) {
+                    match_eval_expr!((context, scopes, &location) {
                         Value::Str(raw_str) => {
                             if !*is_mutable {
                                 return Err(format!("cannot assign to a property of an immutable object"));
@@ -379,7 +379,7 @@ fn bind_(
                 return Err(format!("can't assign to prototype properties"));
             }
 
-            match_eval_expr!((scopes, builtins, &expr) {
+            match_eval_expr!((context, scopes, &expr) {
                 Value::Object{props, is_mutable} => {
                     if !*is_mutable {
                         return Err(format!("cannot assign to a property of an immutable object"));
@@ -398,8 +398,8 @@ fn bind_(
             match &(*rhs.lock().unwrap()).v {
                 Value::Object{props: rhs_props, ..} => {
                     bind_object(
+                        context,
                         scopes,
-                        builtins,
                         already_declared,
                         lhs_props,
                         lhs_is_mutable,
@@ -479,8 +479,8 @@ fn bind_name_(
 }
 
 fn bind_list(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<ListItem>,
     lhs_is_mutable: bool,
@@ -500,8 +500,8 @@ fn bind_list(
 
     if is_unspread {
         bind_unspread_list(
+            context,
             scopes,
-            builtins,
             &mut already_declared,
             lhs,
             lhs_is_mutable,
@@ -509,13 +509,13 @@ fn bind_list(
             bt,
         )
     } else {
-        bind_exact_list(scopes, builtins, &mut already_declared, lhs, rhs, bt)
+        bind_exact_list(context, scopes, &mut already_declared, lhs, rhs, bt)
     }
 }
 
 fn bind_unspread_list(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     mut lhs: Vec<ListItem>,
     lhs_is_mutable: bool,
@@ -541,7 +541,7 @@ fn bind_unspread_list(
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        bind_(scopes, builtins, &mut already_declared, expr, rhs, bt)?;
+        bind_(context, scopes, &mut already_declared, expr, rhs, bt)?;
     }
 
     match unspread_expr {
@@ -558,8 +558,8 @@ fn bind_unspread_list(
 }
 
 fn bind_exact_list(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<ListItem>,
     rhs: List,
@@ -576,15 +576,15 @@ fn bind_exact_list(
             return Err(format!("can't use spread operator in list assigment"));
         }
 
-        bind_(scopes, builtins, &mut already_declared, expr, rhs, bt)?;
+        bind_(context, scopes, &mut already_declared, expr, rhs, bt)?;
     }
 
     Ok(())
 }
 
 fn bind_object(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Vec<PropItem>,
     lhs_is_mutable: bool,
@@ -629,7 +629,7 @@ fn bind_object(
                         let lhs = Expr::Var{name: name.clone()};
                         let mutability = new_mutability_from_is_mutable(lhs_is_mutable);
                         let new_rhs = value::new_object(props, mutability);
-                        if let Err(e) = bind_(scopes, builtins, &mut already_declared, lhs, new_rhs, bt) {
+                        if let Err(e) = bind_(context, scopes, &mut already_declared, lhs, new_rhs, bt) {
                             return Err(format!("couldn't bind '{}': {}", name, e));
                         }
                     } else {
@@ -639,14 +639,14 @@ fn bind_object(
                     rhs_keys.remove(&name);
 
                     let item_name = Expr::Str{s: name.clone()};
-                    let result = bind_object_pair(scopes, builtins, &mut already_declared, expr, &rhs, &item_name, bt);
+                    let result = bind_object_pair(context, scopes, &mut already_declared, expr, &rhs, &item_name, bt);
                     if let Err(e) = result {
                         return Err(format!("couldn't bind object pair '{}': {}", name, e));
                     }
                 }
             },
             PropItem::Pair{name, value: new_lhs} => {
-                let raw_prop_name = eval_expr_to_str(scopes, builtins, &name, "property key")?;
+                let raw_prop_name = eval_expr_to_str(context, scopes, &name, "property key")?;
 
                 // TODO Consider whether non-UTF-8 strings can be used as keys
                 // for objects.
@@ -658,7 +658,7 @@ fn bind_object(
 
                 rhs_keys.remove(&prop_name);
 
-                let result = bind_object_pair(scopes, builtins, already_declared, new_lhs, &rhs, &name, bt);
+                let result = bind_object_pair(context, scopes, already_declared, new_lhs, &rhs, &name, bt);
                 if let Err(e) = result {
                     return Err(format!("couldn't bind object pair '{}': {}", prop_name, e));
                 }
@@ -672,8 +672,8 @@ fn bind_object(
 // TODO This function is used to simplify `bind_object`, but its signature
 // isn't very clear at present, and should be clarified when possible.
 fn bind_object_pair(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     mut already_declared: &mut HashSet<String>,
     lhs: Expr,
     rhs: &HashMap<String,ValRefWithSource>,
@@ -682,7 +682,7 @@ fn bind_object_pair(
 )
     -> Result<(),String>
 {
-    let raw_name = eval_expr_to_str(scopes, builtins, &item_name, "property key")?;
+    let raw_name = eval_expr_to_str(context, scopes, &item_name, "property key")?;
 
     // TODO Consider whether non-UTF-8 strings can be used as keys for objects.
     let name =
@@ -697,7 +697,7 @@ fn bind_object_pair(
             None => return Err(format!("property '{}' not found in source object", name)),
         };
 
-    if let Err(e) = bind_(scopes, builtins, &mut already_declared, lhs, new_rhs, bt) {
+    if let Err(e) = bind_(context, scopes, &mut already_declared, lhs, new_rhs, bt) {
         return Err(format!("couldn't bind '{}': {}", name, e));
     }
 
@@ -705,8 +705,8 @@ fn bind_object_pair(
 }
 
 fn eval_expr(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     expr: &Expr,
 ) -> Result<ValRefWithSource,String> {
     match expr {
@@ -729,7 +729,7 @@ fn eval_expr(
             let mut vals = vec![];
 
             for item in xs {
-                let value = eval_expr(scopes, builtins, &item.expr)?;
+                let value = eval_expr(context, scopes, &item.expr)?;
 
                 if !item.is_spread {
                     vals.push(value);
@@ -754,8 +754,8 @@ fn eval_expr(
         },
 
         Expr::Range{start, end} => {
-            let start = eval_expr_to_i64(scopes, builtins, &start, "range start")?;
-            let end = eval_expr_to_i64(scopes, builtins, &end, "range end")?;
+            let start = eval_expr_to_i64(context, scopes, &start, "range start")?;
+            let end = eval_expr_to_i64(context, scopes, &end, "range end")?;
             let range =
                 (start..end)
                     .map(|n| value::new_int(n))
@@ -765,10 +765,10 @@ fn eval_expr(
         },
 
         Expr::Index{expr, location} => {
-            let source = eval_expr(scopes, builtins, expr)?;
+            let source = eval_expr(context, scopes, expr)?;
             match &(*source.lock().unwrap()).v {
                 Value::Str(s) => {
-                    let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
+                    let n = eval_expr_to_i64(context, scopes, &location, "index")?;
                     match s.get(n as usize) {
                         Some(v) => return Ok(value::new_str(vec![*v])),
                         None => return Err(format!("index out of bounds")),
@@ -776,7 +776,7 @@ fn eval_expr(
                 },
 
                 Value::List{list, ..} => {
-                    let n = eval_expr_to_i64(scopes, builtins, &location, "index")?;
+                    let n = eval_expr_to_i64(context, scopes, &location, "index")?;
                     match list.get(n as usize) {
                         Some(v) => return Ok(v.clone()),
                         None => return Err(format!("index out of bounds")),
@@ -784,7 +784,7 @@ fn eval_expr(
                 },
 
                 Value::Object{props, ..} => {
-                    match_eval_expr!((scopes, builtins, &location) {
+                    match_eval_expr!((context, scopes, &location) {
                         Value::Str(raw_name) => {
                             // TODO Consider whether non-UTF-8 strings can be
                             // used to perform key lookups on objects.
@@ -816,13 +816,13 @@ fn eval_expr(
         },
 
         Expr::IndexRange{expr, start: maybe_start, end: maybe_end} => {
-            match_eval_expr!((scopes, builtins, &expr) {
+            match_eval_expr!((context, scopes, &expr) {
                 Value::Str(s) => {
                     if let Some(start) = maybe_start {
-                        let start = eval_expr_to_i64(scopes, builtins, &start, "index")?;
+                        let start = eval_expr_to_i64(context, scopes, &start, "index")?;
 
                         if let Some(end) = maybe_end {
-                            let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+                            let end = eval_expr_to_i64(context, scopes, &end, "index")?;
                             return get_str_index_range(
                                 s,
                                 Some(start as usize),
@@ -834,7 +834,7 @@ fn eval_expr(
                     }
 
                     if let Some(end) = maybe_end {
-                        let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+                        let end = eval_expr_to_i64(context, scopes, &end, "index")?;
 
                         return get_str_index_range(s, None, Some(end as usize));
                     }
@@ -843,10 +843,10 @@ fn eval_expr(
 
                 Value::List{list, ..} => {
                     if let Some(start) = maybe_start {
-                        let start = eval_expr_to_i64(scopes, builtins, &start, "index")?;
+                        let start = eval_expr_to_i64(context, scopes, &start, "index")?;
 
                         if let Some(end) = maybe_end {
-                            let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+                            let end = eval_expr_to_i64(context, scopes, &end, "index")?;
                             return get_list_index_range(
                                 list,
                                 Some(start as usize),
@@ -858,7 +858,7 @@ fn eval_expr(
                     }
 
                     if let Some(end) = maybe_end {
-                        let end = eval_expr_to_i64(scopes, builtins, &end, "index")?;
+                        let end = eval_expr_to_i64(context, scopes, &end, "index")?;
 
                         return get_list_index_range(list, None, Some(end as usize));
                     }
@@ -870,9 +870,9 @@ fn eval_expr(
         },
 
         Expr::Prop{expr, name, prototype} => {
-            let value = eval_expr(scopes, builtins, expr)?;
+            let value = eval_expr(context, scopes, expr)?;
             if *prototype {
-                let proto_props = builtins.prototypes.prototype_for(
+                let proto_props = context.builtins.prototypes.prototype_for(
                     &(*value.lock().unwrap()).v,
                 )?;
 
@@ -913,7 +913,7 @@ fn eval_expr(
         },
 
         Expr::Subcommand{expr, name} => {
-            match_eval_expr!((scopes, builtins, &expr) {
+            match_eval_expr!((context, scopes, &expr) {
                 Value::Str(raw_prog) => {
                     let args = vec![name.clone()];
 
@@ -937,7 +937,7 @@ fn eval_expr(
         },
 
         Expr::CatchAsBool{expr} => {
-            let maybe_value = eval_expr(scopes, builtins, &expr);
+            let maybe_value = eval_expr(context, scopes, &expr);
             let (maybe_value, maybe_err) =
                 match maybe_value {
                     Ok(v) => (v, value::new_bool(true)),
@@ -948,7 +948,7 @@ fn eval_expr(
         },
 
         Expr::CatchAsError{expr} => {
-            let maybe_value = eval_expr(scopes, builtins, &expr);
+            let maybe_value = eval_expr(context, scopes, &expr);
             let (maybe_value, maybe_err) =
                 match maybe_value {
                     Ok(v) => (v, value::new_null()),
@@ -964,9 +964,9 @@ fn eval_expr(
             for prop in props {
                 match prop {
                     PropItem::Pair{name, value} => {
-                        let raw_key = eval_expr_to_str(scopes, builtins, &name, "property key")?;
+                        let raw_key = eval_expr_to_str(context, scopes, &name, "property key")?;
 
-                        let v = eval_expr(scopes, builtins, &value)?;
+                        let v = eval_expr(context, scopes, &value)?;
 
                         // TODO Consider whether non-UTF-8 strings can be used
                         // as keys for objects.
@@ -984,7 +984,7 @@ fn eval_expr(
                         }
 
                         if *is_spread {
-                            match_eval_expr!((scopes, builtins, &expr) {
+                            match_eval_expr!((context, scopes, &expr) {
                                 Value::Object{props, ..} => {
                                     for (name, value) in props.iter() {
                                         vals.insert(name.to_string(), value.clone());
@@ -1019,7 +1019,7 @@ fn eval_expr(
         },
 
         Expr::UnaryOp{op, expr} => {
-            let v = eval_expr(scopes, builtins, &*expr)?;
+            let v = eval_expr(context, scopes, &*expr)?;
 
             let result = apply_unary_operation(op, &v.lock().unwrap().v)?;
 
@@ -1031,7 +1031,7 @@ fn eval_expr(
 
             let mut vals = vec![];
             for expr in exprs {
-                let v = eval_expr(scopes, builtins, &*expr)?;
+                let v = eval_expr(context, scopes, &*expr)?;
                 vals.push(v);
             }
 
@@ -1060,9 +1060,9 @@ fn eval_expr(
         },
 
         Expr::Call{expr, args} => {
-            let vals = eval_exprs(scopes, builtins, &args)?;
+            let vals = eval_exprs(context, scopes, &args)?;
 
-            let value = eval_expr(scopes, builtins, &expr)?;
+            let value = eval_expr(context, scopes, &expr)?;
 
             let v =
                 {
@@ -1124,9 +1124,9 @@ fn eval_expr(
 
                     CallBinding::Func{bindings, closure, stmts} => {
                         let ret_val = eval_stmts(
+                            context,
                             &mut closure.clone(),
                             bindings,
-                            builtins,
                             &stmts,
                         )?;
 
@@ -1143,9 +1143,9 @@ fn eval_expr(
         },
 
         Expr::Spawn{expr, args} => {
-            let vals = eval_exprs(scopes, builtins, &args)?;
+            let vals = eval_exprs(context, scopes, &args)?;
 
-            let value = eval_expr(scopes, builtins, &expr)?;
+            let value = eval_expr(context, scopes, &expr)?;
 
             let (prog, args) =
                 {
@@ -1299,8 +1299,8 @@ fn get_list_index_range(
 }
 
 pub fn eval_exprs(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     exprs: &Vec<Expr>,
 )
     -> Result<List, String>
@@ -1308,7 +1308,7 @@ pub fn eval_exprs(
     let mut vals = vec![];
 
     for expr in exprs {
-        let v = eval_expr(scopes, builtins, &expr)?;
+        let v = eval_expr(context, scopes, &expr)?;
         vals.push(v);
     }
 
@@ -1428,42 +1428,42 @@ fn is_null(v: &Value) -> bool {
 }
 
 fn eval_expr_to_bool(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     expr: &Expr,
     name: &str,
 )
     -> Result<bool, String>
 {
-    match_eval_expr!((scopes, builtins, expr) {
+    match_eval_expr!((context, scopes, expr) {
         Value::Bool(b) => Ok(*b),
         _ => Err(format!("{} must be a boolean", name)),
     })
 }
 
 fn eval_expr_to_i64(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     expr: &Expr,
     name: &str,
 )
     -> Result<i64, String>
 {
-    match_eval_expr!((scopes, builtins, expr) {
+    match_eval_expr!((context, scopes, expr) {
         Value::Int(n) => Ok(*n),
         _ => Err(format!("{} must be an integer", name)),
     })
 }
 
 fn eval_expr_to_str(
+    context: &EvaluationContext,
     scopes: &mut ScopeStack,
-    builtins: &Builtins,
     expr: &Expr,
     name: &str,
 )
     -> Result<Str, String>
 {
-    match_eval_expr!((scopes, builtins, expr) {
+    match_eval_expr!((context, scopes, expr) {
         Value::Str(s) => Ok(s.clone()),
         _ => Err(format!("{} must be a string", name)),
     })
@@ -1555,4 +1555,8 @@ fn new_mutability_from_is_mutable(is_mutable: bool) -> Mutability {
     } else {
         Mutability::Immutable
     }
+}
+
+pub struct EvaluationContext {
+    pub builtins: Builtins,
 }
