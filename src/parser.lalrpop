@@ -16,7 +16,7 @@ pub Prog: Prog = {
 pub Stmt: Stmt = {
     <expr:Expr> ";" => Stmt::Expr{expr},
 
-    "import" <name:QuotedStrLiteral> ";" => Stmt::Import{name},
+    "import" <path:QuotedStrLiteral> ";" => Stmt::Import{path},
 
     <lhs:Expr> "$:=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Var},
     <lhs:Expr> ":=" <rhs:Expr> ";" => Stmt::Declare{lhs, rhs, dt: DeclarationType::Const},

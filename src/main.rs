@@ -9,6 +9,9 @@ use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::iter::FromIterator;
+use std::path::Path;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 mod ast;
 mod builtins;
@@ -37,7 +40,15 @@ lalrpop_mod!(
 );
 
 fn main() {
-    let test = read_test();
+    let cur_rel_script_path = Path::new("src/docker_get.lrl");
+
+    // FIXME Remove `unwrap()`.
+    let cwd = env::current_dir().unwrap().to_path_buf();
+
+    let mut cur_script_path = cwd;
+    cur_script_path.push(cur_rel_script_path);
+
+    let test = read_test(&cur_script_path);
 
     let global_bindings = vec![
         (Expr::Var{name: "panic".to_string()}, value::new_built_in_func(fns::panic_)),
@@ -83,21 +94,29 @@ fn main() {
 
     let prototypes = prototypes::prototypes();
 
+    let mut cur_script_dir = cur_script_path;
+    cur_script_dir.pop();
+
     let mut scopes = ScopeStack::new(vec![]);
     let lexer = Lexer::new(&test);
     let ast = ProgParser::new().parse(lexer).unwrap();
     let result = eval::eval_prog(
-        &EvaluationContext{builtins: Builtins{std, prototypes}},
+        &EvaluationContext{
+            builtins: &Builtins{std, prototypes},
+            global_bindings: &global_bindings,
+            cur_script_dir: cur_script_dir,
+            modules: Arc::new(Mutex::new(HashMap::new())),
+        },
         &mut scopes,
-        global_bindings,
+        global_bindings.clone(),
         &ast,
     );
 
     println!("{:?}", result);
 }
 
-fn read_test() -> String {
-    let f = File::open("src/docker_get.lrl").unwrap();
+fn read_test(path: &Path) -> String {
+    let f = File::open(&path).unwrap();
     let lines = BufReader::new(f).lines();
     let mut test = String::new();
 

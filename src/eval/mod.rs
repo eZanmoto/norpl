@@ -4,13 +4,21 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Arc;
+use std::sync::Mutex;
 
-pub mod value;
 pub mod builtins;
+pub mod import;
+pub mod value;
 
 use ast::*;
+use lexer::Lexer;
+use parser::ProgParser;
 use self::builtins::Builtins;
+use self::import::ImportType;
+use self::import::ModuleId;
 use self::value::DeclType;
 use self::value::List;
 use self::value::Mutability;
@@ -83,8 +91,18 @@ pub fn eval_stmts(
         bind(context, &mut inner_scopes, lhs.clone(), rhs, BindType::VarDeclaration)?;
     }
 
+    eval_stmts_with_scope_stack(context, &mut inner_scopes, stmts)
+}
+
+pub fn eval_stmts_with_scope_stack(
+    context: &EvaluationContext,
+    scopes: &mut ScopeStack,
+    stmts: &Block,
+)
+    -> Result<Escape,String>
+{
     for stmt in stmts {
-        let v = eval_stmt(context, &mut inner_scopes, &stmt)?;
+        let v = eval_stmt(context, scopes, &stmt)?;
         match v {
             Escape::None => {},
             _ => return Ok(v),
@@ -115,18 +133,39 @@ fn eval_stmt(
             eval_expr(context, scopes, &expr)?;
         },
 
-        Stmt::Import{name} => {
-            let pkg =
-                match context.builtins.std.get(name) {
-                    Some(v) => v,
-                    None => return Err(format!("'{}' is not a standard package", name)),
+        Stmt::Import{path} => {
+            // TODO Rename `import_path` to highlight the fact that the import
+            // type prefix has been removed.
+            let (import_type, import_path) = import::parse_import_path_type(path)?;
+
+            let (alias, module): (String, ValRefWithSource) =
+                match import_type {
+                    ImportType::Relative{parent_depth} => {
+                        eval_relative_import_binding(
+                            context,
+                            import_path,
+                            parent_depth,
+                        )?
+                    },
+
+                    ImportType::StandardLibrary => {
+                        let pkg =
+                            match context.builtins.std.get(&import_path) {
+                                Some(v) => v,
+                                None => return Err(format!("'{}' is not a standard package", import_path)),
+                            };
+
+                        // TODO Resolve `import_path` into an alias.
+
+                        (import_path.clone(), pkg.clone())
+                    }
                 };
 
             bind(
                 context,
                 scopes,
-                Expr::Var{name: name.clone()},
-                pkg.clone(),
+                Expr::Var{name: alias},
+                module,
                 BindType::ConstDeclaration,
             )?;
         },
@@ -285,6 +324,130 @@ fn value_to_pairs(v: &Value)
         };
 
     Ok(pairs)
+}
+
+fn eval_relative_import_binding(
+    context: &EvaluationContext,
+    import_path: String,
+    parent_depth: usize,
+)
+    -> Result<(String, ValRefWithSource),String>
+{
+    let rel_path = import::parse_import_path_as_path_buf(&import_path)?;
+
+    // TODO Consider creating an abstraction to highlight the relationship
+    // between `import_path` and alias, so that it can also be applied for
+    // other types of path-based imports.
+    //
+    // FIXME Validate the alias.
+    let raw_alias =
+        match rel_path.file_name() {
+            Some(v) => v,
+            // TODO Clarify this error message.
+            None => return Err(format!("couldn't extract alias from file path")),
+        };
+
+    let alias =
+        match raw_alias.to_str() {
+            Some(v) => v,
+            None => return Err(format!("couldn't convert import alias to string")),
+        };
+
+    let mut full_path = context.cur_script_dir.to_path_buf();
+    for _ in 0..parent_depth {
+        if !full_path.pop() {
+            // TODO Clarify this error message regarding the fact that path
+            // traversal couldn't be performed.
+            return Err(format!("invalid import path"));
+        }
+    }
+    // TODO Investigate whether `clone` can be removed here.
+    full_path.push(rel_path.clone());
+
+    // TODO Extract `"lrl"` to a dependency-injected variable.
+    full_path.set_extension("lrl");
+
+    // TODO Expand `full_path` with regards to symbolic links in order to
+    // define a canonical module ID.
+    //
+    // NOTE The module ID could also be defined as the inode that the module
+    // file is associated with, though we avoid this approach for now due to
+    // platform-dependence.
+    let module_id = full_path.clone();
+
+    let mut maybe_module: Option<ValRefWithSource> = None;
+    // TODO Consider refactoring this section to remove the new block.
+    {
+        let modules = context.modules.lock().unwrap();
+        if let Some(m) = modules.get(&module_id) {
+            maybe_module = Some(m.clone());
+        }
+    }
+
+    let module =
+        if let Some(module) = maybe_module {
+            module.clone()
+        } else {
+            // TODO Prevent more than one process evaluating a module.
+
+            let contents =
+                match import::read_file(&full_path) {
+                    Ok(v) => v,
+                    Err(e) => return Err(format!("couldn't open import file: {:?}", e)),
+                };
+
+            let lexer = Lexer::new(&contents);
+            let Prog::Body{stmts} =
+                match ProgParser::new().parse(lexer) {
+                    Ok(v) => v,
+                    Err(e) => return Err(format!("couldn't parse import file: {:?}", e)),
+                };
+
+            let top_scope = Arc::new(Mutex::new(HashMap::new()));
+            let mut scopes = ScopeStack::new(vec![top_scope.clone()]);
+
+            // TODO This is mostly duplicated from `eval_stmts` and should
+            // ideally be de-duplicated when time allows.
+            for (lhs, rhs) in context.global_bindings.clone() {
+                bind(context, &mut scopes, lhs.clone(), rhs, BindType::VarDeclaration)?;
+            }
+
+            let mut sub_script_dir = full_path;
+            sub_script_dir.pop();
+            eval_stmts_with_scope_stack(
+                &EvaluationContext{
+                    builtins: context.builtins,
+                    global_bindings: context.global_bindings,
+                    cur_script_dir: sub_script_dir,
+                    modules: context.modules.clone(),
+                },
+                &mut scopes,
+                &stmts,
+            )?;
+
+            let mut exports = HashMap::new();
+
+            // TODO The top scope should be discarded at the end of this block,
+            // so `clone` is a potentially expensive, yet unnecessary
+            // operation.
+            for (k, (v, _)) in top_scope.lock().unwrap().iter() {
+                // TODO Skip non-exported names.
+
+                // TODO Investigate whether `k.clone()` can be avoided
+                // (`v.clone()` is a reference clone).
+                exports.insert(k.clone(), v.clone());
+            }
+
+            let module = value::new_object(exports, Mutability::Immutable);
+            context.modules
+                .lock()
+                .unwrap()
+                .insert(module_id, module.clone());
+
+            module
+        };
+
+    Ok((alias.to_string(), module))
 }
 
 fn bind(
@@ -1557,6 +1720,16 @@ fn new_mutability_from_is_mutable(is_mutable: bool) -> Mutability {
     }
 }
 
-pub struct EvaluationContext {
-    pub builtins: Builtins,
+pub struct EvaluationContext<'a> {
+    pub builtins: &'a Builtins,
+    pub cur_script_dir: PathBuf,
+
+    // TODO Consider grouping `global_bindings` with `builtins`.
+    pub global_bindings: &'a Vec<(Expr, ValRefWithSource)>,
+
+    // NOTE The value referenced by `ValRefWithSource`, i.e. the module value,
+    // should always be an object. This is difficult to enforce at the
+    // type-level, and so it should ideally be enforced at the point where
+    // modules are added to the map.
+    pub modules: Arc<Mutex<HashMap<ModuleId, ValRefWithSource>>>,
 }
