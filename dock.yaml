@@ -1,0 +1,23 @@
+# Copyright 2022 Sean Kelleher. All rights reserved.
+# Use of this source code is governed by an MIT
+# licence that can be found in the LICENCE file.
+
+schema_version: '0.1'
+organisation: ezanmoto
+project: norpl
+default_shell_env: build
+
+environments:
+  build:
+    workdir: /app
+
+    cache_volumes:
+      cargo: /cargo
+
+    env:
+      CARGO_HOME: /cargo
+
+    mount_local:
+    - user
+    - group
+    - project_dir
