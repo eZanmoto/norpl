@@ -2,7 +2,6 @@
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
-use std::array::IntoIter;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -57,11 +56,11 @@ fn main() {
         (Expr::Var{name: "type".to_string()}, value::new_built_in_func(fns::type_)),
     ];
 
-    let std = HashMap::<_, _>::from_iter(IntoIter::new([
+    let std = HashMap::<_, _>::from_iter(IntoIterator::into_iter([
         (
             "proc".to_string(),
             value::new_object(
-                HashMap::<_, _>::from_iter(IntoIter::new([
+                HashMap::<_, _>::from_iter(IntoIterator::into_iter([
                     (
                         "env".to_string(),
                         value::new_object(

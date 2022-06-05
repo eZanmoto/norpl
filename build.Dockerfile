@@ -1,8 +1,8 @@
-# Copyright 2021 Sean Kelleher. All rights reserved.
+# Copyright 2021-2022 Sean Kelleher. All rights reserved.
 # Use of this source code is governed by an MIT
 # licence that can be found in the LICENCE file.
 
-FROM rust:1.52.1-slim-bullseye
+FROM rust:1.60.0-buster
 
 RUN \
     rustup component add \

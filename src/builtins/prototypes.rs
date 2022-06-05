@@ -2,7 +2,6 @@
 // Use of this source code is governed by an MIT
 // licence that can be found in the LICENCE file.
 
-use std::array::IntoIter;
 use std::collections::HashMap;
 use std::iter::FromIterator;
 
@@ -17,7 +16,7 @@ pub fn prototypes() -> Prototypes {
         bools: HashMap::<String, ValRefWithSource>::new(),
         ints: HashMap::<String, ValRefWithSource>::new(),
 
-        strs: HashMap::<_, _>::from_iter(IntoIter::new([
+        strs: HashMap::<_, _>::from_iter(IntoIterator::into_iter([
             (
                 "contains".to_string(),
                 value::new_built_in_func(str_contains_),
@@ -40,7 +39,7 @@ pub fn prototypes() -> Prototypes {
             ),
         ])),
 
-        lists: HashMap::<_, _>::from_iter(IntoIter::new([
+        lists: HashMap::<_, _>::from_iter(IntoIterator::into_iter([
             (
                 "len".to_string(),
                 value::new_built_in_func(list_len_),
