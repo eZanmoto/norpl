@@ -12,10 +12,10 @@ repository = "https://github.com/ezanmoto/norpl"
 version = "0.1.0"
 
 [build-dependencies]
-lalrpop = "0.19.5"
+lalrpop = "=0.19.5"
 
 [dependencies]
-lalrpop-util = "0.19.5"
+lalrpop-util = "=0.19.5"
 
 [dev-dependencies]
-assert_cmd = "1.0.1"
+assert_cmd = "=1.0.1"
