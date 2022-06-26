@@ -5,8 +5,6 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::path::Path;
@@ -123,7 +121,7 @@ fn main() {
 fn read_test(path: &Path) -> String {
     let mut f = File::open(&path).unwrap();
     let mut buf = vec![];
-    f.read_to_end(&mut buf);
+    f.read_to_end(&mut buf).unwrap();
     let s = String::from_utf8(buf).unwrap();
 
     s
