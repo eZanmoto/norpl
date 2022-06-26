@@ -115,7 +115,9 @@ fn main() {
         &ast,
     );
 
-    println!("{:?}", result);
+    if let Err(e) = result {
+        eprintln!("runtime error: {}", e);
+    }
 }
 
 fn read_test(path: &Path) -> String {
