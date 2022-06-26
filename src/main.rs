@@ -7,6 +7,7 @@ use std::env;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::io::Read;
 use std::iter::FromIterator;
 use std::path::Path;
 use std::sync::Arc;
@@ -115,13 +116,10 @@ fn main() {
 }
 
 fn read_test(path: &Path) -> String {
-    let f = File::open(&path).unwrap();
-    let lines = BufReader::new(f).lines();
-    let mut test = String::new();
+    let mut f = File::open(&path).unwrap();
+    let mut buf = vec![];
+    f.read_to_end(&mut buf);
+    let s = String::from_utf8(buf).unwrap();
 
-    for s in lines {
-        test.push_str(&(s.unwrap() + "\n"));
-    }
-
-    test
+    s
 }
