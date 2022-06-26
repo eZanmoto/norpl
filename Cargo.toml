@@ -12,6 +12,7 @@ repository = "https://github.com/ezanmoto/norpl"
 version = "0.1.0"
 
 [build-dependencies]
+indoc = "=1.0.2"
 lalrpop = "=0.19.5"
 
 [dependencies]
