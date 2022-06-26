@@ -40,7 +40,10 @@ lalrpop_mod!(
 );
 
 fn main() {
-    let cur_rel_script_path = Path::new("src/docker_get.lrl");
+    let mut args = std::env::args();
+    let _prog = args.next().expect("couldn't get program name");
+    let arg = args.next().expect("couldn't get first argument");
+    let cur_rel_script_path = Path::new(&arg);
 
     // FIXME Remove `unwrap()`.
     let cwd = env::current_dir().unwrap().to_path_buf();
